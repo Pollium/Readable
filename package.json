@@ -1,0 +1,10 @@
+{
+  "name": "readable",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck"
+  }
+}
