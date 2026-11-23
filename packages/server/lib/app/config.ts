@@ -18,6 +18,7 @@ export interface ReadableDatabaseConfig{
     url: string;
     schema: string | undefined;
     synchronize: boolean;
+    timestamptz?: boolean;
 }
 
 export interface ReadableConfig{

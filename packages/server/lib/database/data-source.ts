@@ -10,8 +10,8 @@ export const createDataSource = (
     database: ReadableDatabaseConfig,
     entities: Function[],
     migrations?: MigrationSource
-): DataSource =>
-    new DataSource({
+): DataSource => {
+    const dataSource = new DataSource({
         type: 'postgres',
         url: database.url,
         schema: database.schema,
@@ -23,3 +23,8 @@ export const createDataSource = (
             migrationsTransactionMode: 'all' as const
         })
     });
+    if(database.timestamptz){
+        Object.assign(dataSource.driver.mappedDataTypes, { createDate: 'timestamptz', updateDate: 'timestamptz' });
+    }
+    return dataSource;
+};
