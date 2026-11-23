@@ -1,8 +1,19 @@
+import ClassMetadata from '../utils/ClassMetadata';
 import { createRedis } from '../redis/RedisClient';
 import { readableConfig } from '../config';
 import { logger } from '../utils/Logger';
+import { EventError } from '../errors';
 import { Redis } from 'ioredis';
 import { randomBytes } from 'node:crypto';
+
+export interface EventBinding{
+    event: string;
+    handlerName: string | symbol;
+}
+
+declare global{
+    interface EventMap{}
+}
 
 type Handler = (payload: unknown) => unknown;
 
@@ -105,3 +116,39 @@ class EventBus{
 }
 
 export const eventBus = new EventBus();
+
+const groupByClass = new WeakMap<object, string>();
+const eventsByClass = new ClassMetadata<EventBinding>();
+
+export const DefineEventGroup = (group: string): ClassDecorator => {
+    return (target) => {
+        groupByClass.set(target, group);
+    };
+};
+
+export const getEventGroup = (ctor: object): string | undefined => {
+    return groupByClass.get(ctor);
+};
+
+export const Event = (event: string): MethodDecorator => {
+    return (target, handlerName) => {
+        eventsByClass.append(target.constructor, { event, handlerName });
+    };
+};
+
+export const getEvents = (ctor: object): EventBinding[] => {
+    return eventsByClass.get(ctor);
+};
+
+type EventHandler = (payload: unknown) => unknown;
+
+export const registerEventGroup = (GroupClass: new () => object) => {
+    const group = getEventGroup(GroupClass);
+    if(!group) throw EventError.UndefinedGroup();
+
+    const instance = new GroupClass() as Record<string | symbol, EventHandler>;
+
+    for(const { event, handlerName } of getEvents(GroupClass)){
+        eventBus.subscribe(`${group}.${event}`, instance[handlerName].bind(instance));
+    }
+};
