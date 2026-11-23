@@ -1,7 +1,7 @@
-import { ConfigError, CryptoError } from '../errors';
+import { ConfigError, CryptoError } from './errors';
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 
-export default class SecretCipher{
+export class SecretCipher{
     static readonly #ALGORITHM = 'aes-256-gcm';
     static readonly #IV_BYTES = 12;
     static readonly #KEY_BYTES = 32;

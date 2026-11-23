@@ -1,8 +1,12 @@
-import ClassMetadata from '../utils/ClassMetadata';
+import { ClassMetadata } from '../metadata';
 import { RequestError, ValidationError } from '../errors';
-import { UploadedFile as UploadedFilePayload } from '../contracts/upload';
 import { IValidation } from 'typia';
 import { FastifyReply, FastifyRequest } from 'fastify';
+
+export interface UploadedFile{
+    filename: string;
+    buffer: Buffer;
+}
 
 export type ParamResolver = (req: FastifyRequest, reply?: FastifyReply) => unknown;
 
@@ -158,7 +162,7 @@ interface MultipartRequest{
 }
 
 export const UploadedFile = (): ParameterDecorator =>
-    createParamDecorator(async (req): Promise<UploadedFilePayload> => {
+    createParamDecorator(async (req): Promise<UploadedFile> => {
         const part = await (req as typeof req & MultipartRequest).file();
         if(!part) throw RequestError.FileMissing();
 

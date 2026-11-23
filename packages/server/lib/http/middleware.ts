@@ -1,4 +1,4 @@
-import ClassMetadata from '../utils/ClassMetadata';
+import { ClassMetadata } from '../metadata';
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { RateLimitOptions as RouteRateLimit } from '@fastify/rate-limit';
 

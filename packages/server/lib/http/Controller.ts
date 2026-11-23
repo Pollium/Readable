@@ -1,4 +1,4 @@
-import ClassMetadata from '../utils/ClassMetadata';
+import { ClassMetadata } from '../metadata';
 import { HttpMethod, Endpoint } from '@pollium/readable-contracts/routing';
 import { Paginated, RawResponse, RedirectResponse } from './responses';
 import { getParamResolvers } from './params';

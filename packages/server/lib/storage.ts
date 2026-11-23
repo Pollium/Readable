@@ -1,6 +1,31 @@
-import { storageConfig } from '../app/config';
-import { ListOptions, StoredPage, StoredStat } from '../contracts/storage';
+import { storageConfig } from './app/config';
 import { CreateBucketCommand, DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, HeadObjectCommand, ListObjectsV2Command, PutBucketCorsCommand, PutBucketPolicyCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+
+export interface StoredObject{
+    key: string;
+    size: number;
+    modifiedAt: Date;
+}
+
+export interface StoredPage{
+    objects: StoredObject[];
+    folders: string[];
+    cursor: string | null;
+}
+
+export interface StoredStat{
+    size: number;
+    modifiedAt: Date;
+    contentType: string | null;
+    cacheControl: string | null;
+    etag: string | null;
+}
+
+export interface ListOptions{
+    grouped: boolean;
+    limit: number;
+    cursor?: string;
+}
 
 const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 const SCRIPTABLE_TYPE = /^(text\/html|application\/xhtml\+xml|image\/svg\+xml|text\/xml|application\/xml)\b/i;
@@ -210,4 +235,3 @@ class ObjectStorage{
 }
 
 export const objectStorage = new ObjectStorage();
-export type { StoredObject, StoredPage, StoredStat, ListOptions } from '../contracts/storage';

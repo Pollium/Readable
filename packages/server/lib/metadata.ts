@@ -1,4 +1,4 @@
-export default class ClassMetadata<T>{
+export class ClassMetadata<T>{
     #store = new WeakMap<object, T[]>();
 
     append(ctor: object, item: T){

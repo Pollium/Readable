@@ -1,5 +1,5 @@
 import { configure } from '../lib/app/config';
-import { objectStorage } from '../lib/storage/ObjectStorage';
+import { objectStorage } from '../lib/storage';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 

@@ -1,4 +1,4 @@
-import ClassMetadata from '../utils/ClassMetadata';
+import { ClassMetadata } from '../metadata';
 import { createRedis } from '../app/redis';
 import { readableConfig } from '../app/config';
 import { logger } from '../app/logger';

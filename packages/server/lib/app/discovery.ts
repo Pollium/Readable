@@ -1,5 +1,5 @@
 import BaseGateway from '../gateway/Gateway';
-import BaseQueue from '../queues/BaseQueue';
+import { BaseQueue } from '../queues';
 import BaseController, { getControllerPrefix } from '../http/Controller';
 import { readdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
