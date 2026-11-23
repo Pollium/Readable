@@ -186,7 +186,7 @@ const createApp = () => new Application({
     port: config.port,
     corsOrigins: config.corsOrigins,
     log: config.log,
-    discover: () => discoverFrom(import.meta.url),
+    discover: () => discoverFrom(import.meta.url, (url) => import(url)),
     createDataSource: (entities) => createDataSource(config.database, entities)
 });
 

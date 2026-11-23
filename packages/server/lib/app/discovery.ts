@@ -19,8 +19,10 @@ export interface Discovered{
     tools: Array<new () => object>;
 }
 
+export type ModuleLoader = (url: string) => Promise<{ default?: unknown }>;
+
 export class ModuleDiscovery{
-    constructor(private readonly modulesDir: string){}
+    constructor(private readonly modulesDir: string, private readonly load: ModuleLoader){}
 
     async discover(): Promise<Discovered>{
         const names = (await readdir(this.modulesDir, { withFileTypes: true }))
@@ -78,8 +80,8 @@ export class ModuleDiscovery{
         const loaded: T[] = [];
         for(const file of files.sort()){
             if(!file.endsWith('.ts') || file.endsWith('.d.ts')) continue;
-            const imported = await import(pathToFileURL(join(dir, file)).href) as { default?: T };
-            if(imported.default) loaded.push(imported.default);
+            const imported = await this.load(pathToFileURL(join(dir, file)).href);
+            if(imported.default) loaded.push(imported.default as T);
         }
         return loaded;
     }
@@ -87,11 +89,12 @@ export class ModuleDiscovery{
 
 export const discoverFrom = async (
     metaUrl: string,
+    load: ModuleLoader,
     folders: string[] = ['modules']
 ): Promise<Discovered> => {
     const srcDir = join(dirname(fileURLToPath(metaUrl)), '..');
 
     return ModuleDiscovery.merge(await Promise.all(
-        folders.map((folder) => new ModuleDiscovery(join(srcDir, folder)).discover())
+        folders.map((folder) => new ModuleDiscovery(join(srcDir, folder), load).discover())
     ));
 };
