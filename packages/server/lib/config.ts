@@ -21,6 +21,7 @@ export interface ReadableDatabaseConfig{
 }
 
 export interface ReadableConfig{
+    name: string;
     jwtSecret: string | null;
     redis: ReadableRedisConfig;
     storage: ReadableStorageConfig | null;

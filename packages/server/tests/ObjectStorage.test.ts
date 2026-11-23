@@ -15,6 +15,7 @@ const dispositionOf = async (contentType: string): Promise<string | undefined> =
 describe('objectStorage', () => {
     beforeAll(() => {
         configure({
+            name: 'readable',
             jwtSecret: 'test-jwt-secret',
             redis: { host: 'localhost', port: 6379 },
             storage: { endpoint: 'http://storage.test', region: 'us-east-1', accessKey: 'a', secretKey: 's', bucket: 'b', publicUrl: 'http://storage.test/b' }

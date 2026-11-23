@@ -1,11 +1,12 @@
 import { createRedis } from '../redis/RedisClient';
+import { readableConfig } from '../config';
 import { logger } from '../utils/Logger';
 import { Redis } from 'ioredis';
 import { randomBytes } from 'node:crypto';
 
 type Handler = (payload: unknown) => unknown;
 
-const CHANNEL = 'pollium:events';
+const channelOf = () => `${readableConfig().name}:events`;
 const origin = randomBytes(8).toString('hex');
 
 interface Envelope{
@@ -68,7 +69,7 @@ class EventBus{
         try{
             this.#publisher ??= this.#connect();
             const envelope: Envelope = { origin, event, payload };
-            await this.#publisher.publish(CHANNEL, JSON.stringify(envelope));
+            await this.#publisher.publish(channelOf(), JSON.stringify(envelope));
         }catch(error){
             logger.error('EventBus::PublishFailed', error);
         }
@@ -83,7 +84,7 @@ class EventBus{
             return;
         }
 
-        void this.#subscriber.subscribe(CHANNEL);
+        void this.#subscriber.subscribe(channelOf());
         this.#subscriber.on('message', (_channel: string, message: string) => {
             let envelope: Envelope;
             try{

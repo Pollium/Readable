@@ -16,7 +16,7 @@ const INGRESS = '10.0.3.2';
 const DIRECT_CLIENT = '198.51.100.9';
 const REDIS = { host: 'localhost', port: 6379 };
 
-configure({ jwtSecret: null, redis: REDIS, storage: null });
+configure({ name: 'readable', jwtSecret: null, redis: REDIS, storage: null });
 
 const application = new Application({
     port: 0,

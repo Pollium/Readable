@@ -28,6 +28,7 @@ describe('a session cut by a credential change', () => {
 
     beforeAll(() => {
         configure({
+            name: 'readable',
             jwtSecret: 'test-jwt-secret',
             redis: { host: 'localhost', port: 6379 },
             storage: null

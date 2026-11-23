@@ -68,6 +68,7 @@ describe('a live socket follows current authorization', () => {
 
     beforeAll(() => {
         configure({
+            name: 'readable',
             jwtSecret: 'test-jwt-secret',
             redis: { host: 'localhost', port: 6379 },
             storage: null

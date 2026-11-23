@@ -9,7 +9,7 @@ const DATABASE_URL = 'postgres://pollium:pollium@localhost:5432/pollium';
 const REDIS = { host: 'localhost', port: 6379 };
 const COURSES = Array.from({ length: 200 }, (_, index) => ({ id: index, name: `Course ${index}`, subject: 'math' }));
 
-configure({ jwtSecret: null, redis: REDIS, storage: null });
+configure({ name: 'readable', jwtSecret: null, redis: REDIS, storage: null });
 
 const application = new Application({
     port: 0,
