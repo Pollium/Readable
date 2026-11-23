@@ -134,6 +134,9 @@ export const IdParam = (name: string): ParameterDecorator =>
 export const OrdinalParam = (name: string): ParameterDecorator =>
     createParamDecorator((req) => parseOrdinal((req.params as Record<string, string>)[name]));
 
+export const Req = (): ParameterDecorator => createParamDecorator((req) => req);
+export const Reply = (): ParameterDecorator => createParamDecorator((_req, reply) => reply);
+
 export const Param = (name: string): ParameterDecorator =>
     createParamDecorator((req) => (req.params as Record<string, string>)[name]);
 
