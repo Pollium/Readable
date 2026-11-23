@@ -1,5 +1,5 @@
 export const autoValidateBody = () => ({
-    name: 'pollium:auto-validate-body',
+    name: 'readable:auto-validate-body',
     enforce: 'pre' as const,
     transform(code: string, id: string){
         if(!/src\/modules\/[^/?]+\/controllers\/[^/?]+\.ts(\?.*)?$/.test(id)) return null;
