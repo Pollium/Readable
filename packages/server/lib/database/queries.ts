@@ -1,5 +1,12 @@
 import { RuntimeError } from '../app/errors';
-import { EntityManager, EntityTarget, ObjectLiteral, BaseEntity, FindOptionsWhere, QueryFailedError } from 'typeorm';
+import {
+    EntityManager,
+    EntityTarget,
+    ObjectLiteral,
+    BaseEntity,
+    FindOptionsWhere,
+    QueryFailedError
+} from 'typeorm';
 
 export interface TableRef{
     table: string;

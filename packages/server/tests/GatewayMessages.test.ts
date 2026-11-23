@@ -1,5 +1,12 @@
 import 'reflect-metadata';
-import BaseGateway, { Channel, OnConnect, OnDisconnect, OnMessage, Payload, Socket } from '../lib/gateway/Gateway';
+import BaseGateway, {
+    Channel,
+    OnConnect,
+    OnDisconnect,
+    OnMessage,
+    Payload,
+    Socket
+} from '../lib/gateway/Gateway';
 import { RuntimeError } from '../lib/app/errors';
 import websocket, { WebSocket } from '@fastify/websocket';
 import Fastify, { FastifyInstance } from 'fastify';

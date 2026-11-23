@@ -1,4 +1,11 @@
-import { ErrorTable, RequestErrors, ServerErrors, AuthErrors, GatewayErrors, RateLimitErrors } from '@pollium/readable-contracts/errors';
+import {
+    ErrorTable,
+    RequestErrors,
+    ServerErrors,
+    AuthErrors,
+    GatewayErrors,
+    RateLimitErrors
+} from '@pollium/readable-contracts/errors';
 
 export class RuntimeError extends Error{
     public statusCode: number;
