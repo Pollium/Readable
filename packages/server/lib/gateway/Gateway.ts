@@ -1,14 +1,84 @@
-import ConnectionsRegistry from './ConnectionRegistry';
+import ClassMetadata from '../utils/ClassMetadata';
+import ConnectionsRegistry, { OutboundMessage } from './ConnectionRegistry';
+import { createParamDecorator, getParamResolvers } from '../http/params';
 import { RuntimeError, GatewayError } from '../errors';
-import { InboundFrame, OutboundMessage } from '../contracts/gateway';
-import { getParamResolvers } from '../http/params';
-import { channelByGateway } from '../decorators/gateway/Channel';
-import { handlersByGateway } from '../decorators/gateway/Gateway';
 import { getClassMiddleware } from '../http/middleware';
 import { abortScope } from '../services/AbortScope';
-import { createContext } from './create-context';
-import { WebSocket } from '@fastify/websocket';
-import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { WebsocketPluginOptions, WebSocket } from '@fastify/websocket';
+import { FastifyRequest, FastifyInstance, FastifyReply } from 'fastify';
+
+export interface InboundFrame{
+    type: string;
+    [field: string]: unknown;
+}
+
+export type GatewayLifecycle = 'connect' | 'disconnect';
+
+interface MessageRoute{
+    kind: 'message';
+    type: string;
+}
+
+interface LifecycleRoute{
+    kind: GatewayLifecycle;
+}
+
+export type GatewayRoute = MessageRoute | LifecycleRoute;
+
+export type GatewayHandler = GatewayRoute & {
+    handlerName: string | symbol;
+};
+
+export const MAX_FRAME_BYTES = 1024 * 1024;
+
+export const websocketOptions: WebsocketPluginOptions = {
+    options: { maxPayload: MAX_FRAME_BYTES }
+};
+
+export const SOCKET = Symbol('gateway.socket');
+export const PAYLOAD = Symbol('gateway.payload');
+
+export interface GatewayContext extends FastifyRequest{
+    [SOCKET]: WebSocket,
+    [PAYLOAD]: InboundFrame | undefined;
+}
+
+export const createContext = (
+    req: FastifyRequest,
+    socket: WebSocket,
+    payload: InboundFrame | undefined
+): GatewayContext => {
+    const ctx = Object.create(req) as GatewayContext;
+    ctx[SOCKET] = socket;
+    ctx[PAYLOAD] = payload;
+    return ctx;
+};
+
+export const channelByGateway = new WeakMap<object, string>();
+
+export const Channel = (path: string): ClassDecorator => {
+    return (target) => {
+        channelByGateway.set(target, path);  
+    };
+};
+
+export const handlersByGateway = new ClassMetadata<GatewayHandler>();
+
+const on = (route: GatewayRoute): MethodDecorator => {
+    return (target, handlerName) => {
+        handlersByGateway.append(target.constructor, { ...route, handlerName });
+    };
+};
+
+export const OnConnect = () => on({ kind: 'connect' });
+export const OnDisconnect = () => on({ kind: 'disconnect' });
+export const OnMessage = (type: string) => on({ kind: 'message', type });
+
+export const Payload = (): ParameterDecorator =>
+    createParamDecorator((req) => (req as GatewayContext)[PAYLOAD]);
+
+export const Socket = (): ParameterDecorator =>
+    createParamDecorator((req) => (req as GatewayContext)[SOCKET]);
 
 export const REAUTHORIZE_MS = 30_000;
 export const SESSION_EXPIRED = 4401;

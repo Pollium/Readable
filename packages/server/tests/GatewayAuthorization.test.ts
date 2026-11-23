@@ -1,11 +1,8 @@
 import { JWTService, sessionCutoffs } from '../lib/auth/sessions';
 import 'reflect-metadata';
-import BaseGateway, { ACCESS_REVOKED, REAUTHORIZE_MS, SESSION_EXPIRED } from '../lib/gateway/BaseGateway';
+import BaseGateway, { ACCESS_REVOKED, REAUTHORIZE_MS, SESSION_EXPIRED, Channel, OnMessage, Socket } from '../lib/gateway/Gateway';
 import { SocketAuthenticatedRoute } from '../lib/auth/guards';
 import { configure } from '../lib/config';
-import { Channel } from '../lib/decorators/gateway/Channel';
-import { OnMessage } from '../lib/decorators/gateway/Gateway';
-import { Socket } from '../lib/decorators/gateway/Params';
 import { Middleware } from '../lib/http/middleware';
 import websocket, { WebSocket } from '@fastify/websocket';
 import Fastify, { FastifyInstance } from 'fastify';

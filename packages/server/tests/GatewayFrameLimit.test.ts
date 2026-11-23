@@ -1,7 +1,5 @@
 import 'reflect-metadata';
-import BaseGateway from '../lib/gateway/BaseGateway';
-import { MAX_FRAME_BYTES, websocketOptions } from '../lib/gateway/websocket-options';
-import { Channel } from '../lib/decorators/gateway/Channel';
+import BaseGateway, { MAX_FRAME_BYTES, websocketOptions, Channel } from '../lib/gateway/Gateway';
 import websocket from '@fastify/websocket';
 import Fastify from 'fastify';
 import { describe, expect, it } from 'vitest';

@@ -1,5 +1,16 @@
-import { OutboundMessage, RoomAccess } from '../contracts/gateway';
 import { WebSocket } from '@fastify/websocket';
+
+export interface OutboundMessage<T>{
+    type: string;
+    data: T;
+}
+
+export type RoomAccess = () => Promise<unknown>;
+
+export interface RoomGrant{
+    room: string;
+    access: RoomAccess;
+}
 
 export default class ConnectionsRegistry{
     #sockets = new Set<WebSocket>();
