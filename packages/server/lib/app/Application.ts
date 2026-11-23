@@ -5,13 +5,12 @@ import BaseQueue from '../queues/BaseQueue';
 import { RuntimeError, ValidationError, RateLimitError, ServerError } from '../errors';
 import { ApiError } from '@pollium/readable-contracts/http';
 import { HttpMethod } from '@pollium/readable-contracts/routing';
-import { LogLevel } from '../contracts/logging';
+import { LogLevel, logger } from './logger';
 import { broadcast } from '../events/Broadcast';
 import { registerCompression } from './compression';
 import { eventBus, registerEventGroup } from '../events/EventBus';
-import { Discovered, MountedController } from '../services/ModuleDiscovery';
-import { redis } from '../redis/RedisClient';
-import { logger } from '../utils/Logger';
+import { Discovered, MountedController } from './discovery';
+import { redis } from './redis';
 import Fastify, { LogController, FastifyInstance, FastifyBaseLogger } from 'fastify';
 import { DataSource } from 'typeorm';
 
@@ -161,3 +160,21 @@ export default class Application{
         }
     }
 }
+
+export interface ListenTarget{
+    start(): Promise<void>;
+    stop(): Promise<void>;
+}
+
+export const listen = (app: ListenTarget, failed = 'Failed to start server') => {
+    app.start().catch((err) => {
+        logger.error(failed, err);
+        process.exit(1);
+    });
+
+    for(const signal of ['SIGTERM', 'SIGINT'] as const){
+        process.on(signal, () => {
+            app.stop().finally(() => process.exit(0));
+        });
+    }
+};

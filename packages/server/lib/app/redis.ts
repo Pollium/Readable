@@ -1,4 +1,4 @@
-import { readableConfig } from '../config';
+import { readableConfig } from './config';
 import { Redis, RedisOptions } from 'ioredis';
 
 export const redisOptions = (): RedisOptions => {

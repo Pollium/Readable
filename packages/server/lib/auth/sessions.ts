@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
-import { jwtSecret } from '../config';
-import { redis } from '../redis/RedisClient';
+import { jwtSecret } from '../app/config';
+import { redis } from '../app/redis';
 import { AuthError } from '../errors';
 
 export interface Principal{

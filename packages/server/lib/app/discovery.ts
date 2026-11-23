@@ -1,9 +1,9 @@
-import BaseController, { getControllerPrefix } from '../http/Controller';
 import BaseGateway from '../gateway/Gateway';
 import BaseQueue from '../queues/BaseQueue';
+import BaseController, { getControllerPrefix } from '../http/Controller';
 import { readdir } from 'node:fs/promises';
-import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { join, dirname } from 'node:path';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 
 export interface MountedController{
     prefix: string;
@@ -19,7 +19,7 @@ export interface Discovered{
     tools: Array<new () => object>;
 }
 
-export default class ModuleDiscovery{
+export class ModuleDiscovery{
     constructor(private readonly modulesDir: string){}
 
     async discover(): Promise<Discovered>{
@@ -84,3 +84,14 @@ export default class ModuleDiscovery{
         return loaded;
     }
 }
+
+export const discoverFrom = async (
+    metaUrl: string,
+    folders: string[] = ['modules']
+): Promise<Discovered> => {
+    const srcDir = join(dirname(fileURLToPath(metaUrl)), '..');
+
+    return ModuleDiscovery.merge(await Promise.all(
+        folders.map((folder) => new ModuleDiscovery(join(srcDir, folder)).discover())
+    ));
+};

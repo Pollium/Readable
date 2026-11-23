@@ -1,6 +1,6 @@
 import { RuntimeError, defineErrors, AuthError } from '../errors';
 import { Endpoint } from '@pollium/readable-contracts/routing';
-import { logger } from '../utils/Logger';
+import { logger } from '../app/logger';
 import { MiddlewareFn } from './middleware';
 import { timingSafeEqual } from 'node:crypto';
 

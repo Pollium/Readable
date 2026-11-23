@@ -1,6 +1,6 @@
-import Application from '../lib/http/Application';
-import ModuleDiscovery from '../lib/services/ModuleDiscovery';
-import { configure } from '../lib/config';
+import Application from '../lib/app/Application';
+import { ModuleDiscovery } from '../lib/app/discovery';
+import { configure } from '../lib/app/config';
 import { afterAll, describe, expect, it } from 'vitest';
 
 configure({ name: 'readable', jwtSecret: null, redis: { host: 'localhost', port: 6379 }, storage: null });

@@ -1,5 +1,5 @@
 import { eventBus } from '../lib/events/EventBus';
-import { logger } from '../lib/utils/Logger';
+import { logger } from '../lib/app/logger';
 import { describe, expect, it, vi } from 'vitest';
 
 declare global{

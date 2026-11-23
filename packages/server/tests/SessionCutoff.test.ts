@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { configure } from '../lib/config';
+import { configure } from '../lib/app/config';
 import { Route } from '../lib/http/Controller';
 import Fastify from 'fastify';
 import { AuthenticatedController } from '../lib/auth/guards';

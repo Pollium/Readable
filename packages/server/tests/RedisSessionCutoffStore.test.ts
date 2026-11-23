@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const get = vi.fn();
 const set = vi.fn();
 
-vi.mock('../lib/redis/RedisClient', () => ({
+vi.mock('../lib/app/redis', () => ({
     redis: {
         get: (...args: unknown[]) => get(...args),
         set: (...args: unknown[]) => set(...args)

@@ -1,5 +1,5 @@
-import { createRedis } from '../redis/RedisClient';
-import { logger } from '../utils/Logger';
+import { createRedis } from '../app/redis';
+import { logger } from '../app/logger';
 import { Redis } from 'ioredis';
 
 type BroadcastHandler = (payload: unknown) => void;

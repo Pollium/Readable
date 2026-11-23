@@ -1,4 +1,4 @@
-import { storageConfig } from '../config';
+import { storageConfig } from '../app/config';
 import { ListOptions, StoredPage, StoredStat } from '../contracts/storage';
 import { CreateBucketCommand, DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, HeadObjectCommand, ListObjectsV2Command, PutBucketCorsCommand, PutBucketPolicyCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 

@@ -2,7 +2,7 @@ import { JWTService, sessionCutoffs } from '../lib/auth/sessions';
 import 'reflect-metadata';
 import BaseGateway, { ACCESS_REVOKED, REAUTHORIZE_MS, SESSION_EXPIRED, Channel, OnMessage, Socket } from '../lib/gateway/Gateway';
 import { SocketAuthenticatedRoute } from '../lib/auth/guards';
-import { configure } from '../lib/config';
+import { configure } from '../lib/app/config';
 import { Middleware } from '../lib/http/middleware';
 import websocket, { WebSocket } from '@fastify/websocket';
 import Fastify, { FastifyInstance } from 'fastify';

@@ -1,6 +1,6 @@
 import { get } from '@pollium/readable-contracts/routing';
 import { call } from '../lib/http/call';
-import { logger } from '../lib/utils/Logger';
+import { logger } from '../lib/app/logger';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const directoryRoutes = {

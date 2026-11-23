@@ -1,4 +1,4 @@
-import { ReadableDatabaseConfig } from '../config';
+import { ReadableDatabaseConfig } from '../app/config';
 import { DataSource } from 'typeorm';
 
 export interface MigrationSource{

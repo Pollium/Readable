@@ -1,5 +1,5 @@
-import { redisOptions } from '../redis/RedisClient';
-import { logger } from '../utils/Logger';
+import { redisOptions } from '../app/redis';
+import { logger } from '../app/logger';
 import { Queue, Worker, Job, RateLimiterOptions, JobsOptions, RepeatOptions } from 'bullmq';
 
 const WORKER_STAGES = ['active', 'completed', 'failed'] as const;

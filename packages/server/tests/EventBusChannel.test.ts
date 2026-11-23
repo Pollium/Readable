@@ -7,7 +7,7 @@ const redis = vi.hoisted(() => ({
     quit: vi.fn()
 }));
 
-vi.mock('../lib/redis/RedisClient', () => ({ createRedis: () => redis }));
+vi.mock('../lib/app/redis', () => ({ createRedis: () => redis }));
 
 declare global{
     interface EventMap{
@@ -18,7 +18,7 @@ declare global{
 const remoteBusOf = async (name: string) => {
     vi.stubEnv('VITEST', undefined);
     vi.resetModules();
-    const { configure } = await import('../lib/config');
+    const { configure } = await import('../lib/app/config');
     configure({ name, jwtSecret: null, redis: { host: 'localhost', port: 6379 }, storage: null });
     const { eventBus } = await import('../lib/events/EventBus');
     vi.unstubAllEnvs();
