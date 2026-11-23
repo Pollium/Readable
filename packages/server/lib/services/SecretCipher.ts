@@ -1,5 +1,4 @@
-import { ConfigError } from '../errors/ConfigError';
-import { CryptoError } from '../errors/CryptoError';
+import { ConfigError, CryptoError } from '../errors';
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 
 export default class SecretCipher{

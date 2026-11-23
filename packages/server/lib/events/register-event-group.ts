@@ -1,5 +1,5 @@
 import { getEventGroup, getEvents } from '../decorators/queues/EventGroup';
-import { EventError } from '../errors/Event';
+import { EventError } from '../errors';
 import { eventBus } from './EventBus';
 
 type EventHandler = (payload: unknown) => unknown;

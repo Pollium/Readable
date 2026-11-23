@@ -1,4 +1,4 @@
-import { AuthError } from './errors';
+import { AuthError } from '../errors';
 import { FastifyRequest } from 'fastify';
 
 export const principalId = (req: FastifyRequest): string => {

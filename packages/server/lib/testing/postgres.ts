@@ -1,4 +1,4 @@
-import { ConfigError } from '../errors/ConfigError';
+import { ConfigError } from '../errors';
 import { DataSource } from 'typeorm';
 
 export const requireTestSchema = (schema: string | undefined): string => {

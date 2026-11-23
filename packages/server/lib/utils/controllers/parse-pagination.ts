@@ -1,5 +1,5 @@
 import { Page, PaginationOptions } from '../../contracts/params';
-import { RequestError } from '../../errors/Request';
+import { RequestError } from '../../errors';
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 100;

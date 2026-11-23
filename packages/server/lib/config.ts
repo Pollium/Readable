@@ -1,4 +1,4 @@
-import { ConfigError } from './errors/ConfigError';
+import { ConfigError } from './errors';
 
 export interface ReadableRedisConfig{
     host: string;

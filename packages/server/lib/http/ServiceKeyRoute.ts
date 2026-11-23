@@ -1,4 +1,4 @@
-import { AuthError } from '../auth/errors';
+import { AuthError } from '../errors';
 import { MiddlewareFn } from '../decorators/middleware/Middleware';
 import { timingSafeEqual } from 'node:crypto';
 

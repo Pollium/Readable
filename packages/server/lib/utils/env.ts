@@ -1,4 +1,4 @@
-import { ConfigError } from '../errors/ConfigError';
+import { ConfigError } from '../errors';
 
 export const requiredEnv = (key: string): string => {
     const value = process.env[key];

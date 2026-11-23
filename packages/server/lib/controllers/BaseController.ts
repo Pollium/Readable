@@ -7,7 +7,7 @@ import { routesByController } from '../decorators/controllers/Route';
 import { getStatus } from '../decorators/controllers/Status';
 import { getMiddleware } from '../decorators/middleware/Middleware';
 import { getRateLimit } from '../decorators/middleware/RateLimit';
-import { RouteError } from '../errors/Route';
+import { RouteError } from '../errors';
 import { FastifyInstance } from 'fastify';
 
 export default abstract class BaseController{

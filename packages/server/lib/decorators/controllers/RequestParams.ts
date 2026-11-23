@@ -1,6 +1,6 @@
 import { BodyValidator, PaginationOptions } from '../../contracts/params';
 import { UploadedFile as UploadedFilePayload } from '../../contracts/upload';
-import { RequestError } from '../../errors/Request';
+import { RequestError } from '../../errors';
 import { parseBody } from '../../utils/controllers/parse-body';
 import { parseId } from '../../utils/controllers/parse-id';
 import { parseOrdinal } from '../../utils/controllers/parse-ordinal';

@@ -1,5 +1,5 @@
 import { MiddlewareFn } from '../decorators/middleware/Middleware';
-import { AuthError } from './errors';
+import { AuthError } from '../errors';
 import { verifiedSession } from './verifiedSession';
 
 export const SocketAuthenticatedRoute: MiddlewareFn = async (req) => {

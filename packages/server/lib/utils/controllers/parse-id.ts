@@ -1,4 +1,4 @@
-import { RequestError } from '../../errors/Request';
+import { RequestError } from '../../errors';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 

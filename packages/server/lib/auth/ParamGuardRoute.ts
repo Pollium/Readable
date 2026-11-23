@@ -1,5 +1,5 @@
-import { AuthenticatedRoute } from '../auth/AuthenticatedRoute';
-import { principalId } from '../auth/principalId';
+import { AuthenticatedRoute } from './AuthenticatedRoute';
+import { principalId } from './principalId';
 import { MiddlewareFn } from '../decorators/middleware/Middleware';
 import { parseId } from '../utils/controllers/parse-id';
 

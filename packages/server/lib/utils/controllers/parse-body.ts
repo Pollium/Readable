@@ -1,4 +1,4 @@
-import ValidationError from '../../errors/Validation';
+import { ValidationError } from '../../errors';
 import { IValidation } from 'typia';
 import { BodyValidator } from '../../contracts/params';
 

@@ -1,4 +1,4 @@
-import { RequestError } from '../../errors/Request';
+import { RequestError } from '../../errors';
 
 export const parseOrdinal = (raw: unknown): number => {
     const value = Number(raw);

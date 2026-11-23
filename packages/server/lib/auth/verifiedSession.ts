@@ -1,7 +1,7 @@
 import RedisSessionCutoffStore from '../services/RedisSessionCutoffStore';
 import JWTService from './JWTService';
 import { SessionCutoffStore } from '../contracts/session';
-import { AuthError } from './errors';
+import { AuthError } from '../errors';
 import { TokenPayload } from './types';
 
 export const sessionCutoffs: SessionCutoffStore = new RedisSessionCutoffStore();

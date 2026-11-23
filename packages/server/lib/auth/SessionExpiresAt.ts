@@ -1,5 +1,5 @@
 import { createParamDecorator } from '../decorators/controllers/Params';
-import { AuthError } from './errors';
+import { AuthError } from '../errors';
 import { FastifyRequest } from 'fastify';
 
 const sessionExpiresAt = (req: FastifyRequest): number => {

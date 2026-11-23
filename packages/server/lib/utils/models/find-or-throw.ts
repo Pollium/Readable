@@ -1,4 +1,4 @@
-import RuntimeError from '../../errors/RuntimeError';
+import { RuntimeError } from '../../errors';
 import { BaseEntity, FindOptionsWhere } from 'typeorm';
 
 export const findOrThrow = async <T extends BaseEntity>(

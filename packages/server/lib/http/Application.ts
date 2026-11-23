@@ -1,14 +1,11 @@
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
-import RuntimeError from '../errors/RuntimeError';
-import ValidationError from '../errors/Validation';
 import BaseGateway from '../gateway/BaseGateway';
 import BaseQueue from '../queues/BaseQueue';
+import { RuntimeError, ValidationError, RateLimitError, ServerError } from '../errors';
 import { ApiError } from '@pollium/readable-contracts/http';
 import { HttpMethod } from '@pollium/readable-contracts/routing';
 import { LogLevel } from '../contracts/logging';
-import { RateLimitError } from '../errors/RateLimit';
-import { ServerError } from '../errors/Server';
 import { broadcast } from '../events/Broadcast';
 import { registerCompression } from './compression';
 import { eventBus } from '../events/EventBus';

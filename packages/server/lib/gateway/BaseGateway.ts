@@ -1,11 +1,10 @@
-import RuntimeError from '../errors/RuntimeError';
 import ConnectionsRegistry from './ConnectionRegistry';
+import { RuntimeError, GatewayError } from '../errors';
 import { InboundFrame, OutboundMessage } from '../contracts/gateway';
 import { getParamResolvers } from '../decorators/controllers/Params';
 import { channelByGateway } from '../decorators/gateway/Channel';
 import { handlersByGateway } from '../decorators/gateway/Gateway';
 import { getClassMiddleware } from '../decorators/middleware/Middleware';
-import { GatewayError } from '../errors/Gateway';
 import { abortScope } from '../services/AbortScope';
 import { createContext } from './create-context';
 import { WebSocket } from '@fastify/websocket';

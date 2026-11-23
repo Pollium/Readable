@@ -1,6 +1,5 @@
-import RuntimeError from '../errors/RuntimeError';
+import { RuntimeError, defineErrors } from '../errors';
 import { Endpoint } from '@pollium/readable-contracts/routing';
-import { defineErrors } from '../utils/errors/define-errors';
 import { logger } from '../utils/Logger';
 
 export const CallError = defineErrors({

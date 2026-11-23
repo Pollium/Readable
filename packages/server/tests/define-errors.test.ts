@@ -1,5 +1,4 @@
-import RuntimeError from '../lib/errors/RuntimeError';
-import { defineErrors } from '../lib/utils/errors/define-errors';
+import { RuntimeError, defineErrors } from '../lib/errors';
 import { describe, expect, it } from 'vitest';
 
 const TestError = defineErrors({
