@@ -82,7 +82,7 @@ describe('a live socket follows current authorization', () => {
     });
 
     it('closes once the token it opened with expires', async () => {
-        const client = await connect(jwt.signUntil('user-1', Math.floor(Date.now() / 1000) + 1));
+        const client = await connect(jwt.signUntil('user-1', Math.floor(Date.now() / 1000) + 2));
 
         expect(await client.closed).toBe(4401);
     });
