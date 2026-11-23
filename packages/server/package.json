@@ -1,12 +1,30 @@
 {
   "name": "@pollium/readable",
   "version": "0.0.0",
-  "private": true,
+  "description": "The TypeScript framework for the AI era: Fastify, TypeORM and Redis behind a few decorators and one folder convention.",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Pollium/Readable.git",
+    "directory": "packages/server"
+  },
+  "files": [
+    "dist"
+  ],
   "exports": {
     "./*": "./lib/*.ts"
   },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      "./*": {
+        "types": "./dist/*.d.ts",
+        "default": "./dist/*.js"
+      }
+    }
+  },
   "scripts": {
+    "build": "tsdown",
     "test": "vitest run",
     "lint": "oxlint --deny-warnings",
     "typecheck": "tsc --noEmit -p tsconfig.json"
@@ -26,6 +44,14 @@
     "typeorm": "^1.1.0",
     "typia": "^12.1.1",
     "uuid": "^14.0.2"
+  },
+  "peerDependencies": {
+    "vitest": "^4.1.10"
+  },
+  "peerDependenciesMeta": {
+    "vitest": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.10",

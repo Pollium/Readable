@@ -3,8 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "pnpm -r build",
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "tsdown": "0.23.0"
   }
 }
