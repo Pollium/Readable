@@ -12,8 +12,6 @@ export const CallError = defineErrors({
     }
 } as const);
 
-const REJECTED_STATUSES = new Set([401, 403]);
-
 export const isNotFound = (error: unknown): boolean =>
     error instanceof RuntimeError && error.statusCode === 404;
 
@@ -74,7 +72,7 @@ export const request = async <I, O>(
         }
     });
 
-    if(REJECTED_STATUSES.has(response.status)) throw rejectionOf(host, endpoint, response.status);
+    if([401, 403].includes(response.status)) throw rejectionOf(host, endpoint, response.status);
     if(!response.ok) throw await errorOf(response);
 
     return response;

@@ -2,8 +2,6 @@ import { FastifyInstance, FastifyReply } from 'fastify';
 import { promisify } from 'node:util';
 import { brotliCompress, constants, gzip } from 'node:zlib';
 
-const MIN_BYTES = 1024;
-const BROTLI_QUALITY = 4;
 const COMPRESSIBLE = /^(application\/(json|xml|javascript)|text\/|image\/svg\+xml)/;
 
 const brotli = promisify(brotliCompress);
@@ -33,10 +31,10 @@ export const registerCompression = (app: FastifyInstance) => {
 
         const body = Buffer.from(payload);
         const encoding = encodingFor(request.headers['accept-encoding']);
-        if(body.length < MIN_BYTES || encoding === null) return payload;
+        if(body.length < 1024 || encoding === null) return payload;
 
         const compressed = encoding === 'br'
-            ? await brotli(body, { params: { [constants.BROTLI_PARAM_QUALITY]: BROTLI_QUALITY, [constants.BROTLI_PARAM_SIZE_HINT]: body.length } })
+            ? await brotli(body, { params: { [constants.BROTLI_PARAM_QUALITY]: 4, [constants.BROTLI_PARAM_SIZE_HINT]: body.length } })
             : await gzipped(body);
 
         reply.header('content-encoding', encoding);

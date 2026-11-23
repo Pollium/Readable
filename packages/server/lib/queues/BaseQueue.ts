@@ -2,8 +2,6 @@ import { redisOptions } from '../app/redis';
 import { logger } from '../app/logger';
 import { Queue, Worker, Job, RateLimiterOptions, JobsOptions, RepeatOptions } from 'bullmq';
 
-const WORKER_STAGES = ['active', 'completed', 'failed'] as const;
-
 export default abstract class BaseQueue<T>{
     abstract readonly name: string;
     protected readonly concurrency: number = 1;
@@ -66,7 +64,7 @@ export default abstract class BaseQueue<T>{
     }
 
     #traced(worker: Worker): Worker{
-        for(const stage of WORKER_STAGES){
+        for(const stage of ['active', 'completed', 'failed'] as const){
             worker.on(stage, (job?: Job) => this.#trace(stage, job));
         }
 

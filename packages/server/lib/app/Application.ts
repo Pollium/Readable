@@ -4,7 +4,6 @@ import BaseGateway from '../gateway/Gateway';
 import BaseQueue from '../queues/BaseQueue';
 import { RuntimeError, ValidationError, RateLimitError, ServerError } from './errors';
 import { ApiError } from '@pollium/readable-contracts/http';
-import { HttpMethod } from '@pollium/readable-contracts/routing';
 import { LogLevel, logger } from './logger';
 import { broadcast } from '../events/Broadcast';
 import { registerCompression } from './compression';
@@ -34,10 +33,6 @@ export interface ApplicationOptions{
     afterMount?: (discovered: Discovered) => void;
 }
 
-const CORS_METHODS: HttpMethod[] = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'];
-const PRIVATE_NETWORKS = ['loopback', 'linklocal', 'uniquelocal'];
-const RATE_LIMIT_NAMESPACE = 'rl:';
-
 export default class Application{
     #app!: FastifyInstance;
     #dataSource?: DataSource;
@@ -60,18 +55,18 @@ export default class Application{
         this.#app = Fastify({
             loggerInstance: logger.raw as FastifyBaseLogger,
             logController: new LogController({ disableRequestLogging: true }),
-            trustProxy: PRIVATE_NETWORKS
+            trustProxy: ['loopback', 'linklocal', 'uniquelocal']
         });
 
         await this.#app.register(cors, {
             origin: this.#options.corsOrigins,
             credentials: true,
-            methods: CORS_METHODS
+            methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE']
         });
         await this.#app.register(rateLimit, {
             global: false,
             redis,
-            nameSpace: RATE_LIMIT_NAMESPACE,
+            nameSpace: 'rl:',
             errorResponseBuilder: () => RateLimitError.TooManyRequests()
         });
         registerCompression(this.#app);

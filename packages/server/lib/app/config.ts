@@ -61,8 +61,6 @@ export const storageConfig = (): ReadableStorageConfig => {
     return storage;
 };
 
-const DEFAULT_STORAGE_REGION = 'us-east-1';
-
 export const serviceConfig = (corsFallback: string) => ({
     port: Number(requiredEnv('PORT')),
     corsOrigins: (optionalEnv('CORS_ORIGIN') ?? corsFallback)
@@ -87,7 +85,7 @@ export const redisFromEnv = (): ReadableRedisConfig => ({
 
 export const storageFromEnv = (): ReadableStorageConfig => ({
     endpoint: requiredEnv('STORAGE_ENDPOINT'),
-    region: optionalEnv('STORAGE_REGION') ?? DEFAULT_STORAGE_REGION,
+    region: optionalEnv('STORAGE_REGION') ?? 'us-east-1',
     accessKey: requiredEnv('STORAGE_ACCESS_KEY'),
     secretKey: requiredEnv('STORAGE_SECRET_KEY'),
     bucket: requiredEnv('STORAGE_BUCKET'),
