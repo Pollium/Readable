@@ -1,7 +1,7 @@
 import Application from '../lib/http/Application';
 import ModuleDiscovery from '../lib/services/ModuleDiscovery';
 import { RuntimeError } from '../lib/errors';
-import { createDataSource } from '../lib/http/data-source';
+import { createDataSource } from '../lib/database/data-source';
 import { configure } from '../lib/config';
 import { afterAll, describe, expect, it } from 'vitest';
 

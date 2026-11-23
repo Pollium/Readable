@@ -1,5 +1,4 @@
-import BaseModel from '../lib/models/BaseModel';
-import { Fk } from '../lib/models/Fk';
+import { BaseModel, Fk } from '../lib/database/models';
 import { Entity, getMetadataArgsStorage } from 'typeorm';
 import { describe, expect, it } from 'vitest';
 

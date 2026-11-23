@@ -1,5 +1,4 @@
-import BaseModel from '../lib/models/BaseModel';
-import { Hidden } from '../lib/models/Hidden';
+import { BaseModel, Hidden } from '../lib/database/models';
 import { describe, expect, it } from 'vitest';
 
 class Credential extends BaseModel{
