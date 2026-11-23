@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { jwtSecret } from '../app/config';
 import { redis } from '../app/redis';
-import { AuthError } from '../errors';
+import { AuthError } from '../app/errors';
 
 export interface Principal{
     userId: string;

@@ -1,9 +1,9 @@
-import { ClassMetadata } from '../metadata';
+import { ClassMetadata } from '../app/metadata';
 import { HttpMethod, Endpoint } from '@pollium/readable-contracts/routing';
 import { Paginated, RawResponse, RedirectResponse } from './responses';
 import { getParamResolvers } from './params';
 import { getMiddleware, getRateLimit } from './middleware';
-import { RouteError } from '../errors';
+import { RouteError } from '../app/errors';
 import { FastifyReply, FastifyRequest, RouteGenericInterface, FastifyInstance } from 'fastify';
 
 export interface RouteDefinition{

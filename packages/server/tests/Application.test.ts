@@ -1,6 +1,6 @@
 import Application from '../lib/app/Application';
 import { ModuleDiscovery } from '../lib/app/discovery';
-import { RuntimeError } from '../lib/errors';
+import { RuntimeError } from '../lib/app/errors';
 import { createDataSource } from '../lib/database/data-source';
 import { configure } from '../lib/app/config';
 import { afterAll, describe, expect, it } from 'vitest';

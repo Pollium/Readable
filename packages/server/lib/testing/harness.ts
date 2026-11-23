@@ -1,4 +1,4 @@
-import { ConfigError } from '../errors';
+import { ConfigError } from '../app/errors';
 import { BaseQueue } from '../queues';
 import { eventBus } from '../events/EventBus';
 import { DataSource } from 'typeorm';

@@ -1,7 +1,7 @@
 import BaseController from '../http/Controller';
 import { verifiedSession, Principal, TokenPayload } from './sessions';
 import { MiddlewareFn, Middleware } from '../http/middleware';
-import { AuthError } from '../errors';
+import { AuthError } from '../app/errors';
 import { principalId } from './params';
 import { parseId } from '../http/params';
 import { FastifyRequest } from 'fastify';

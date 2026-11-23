@@ -1,4 +1,4 @@
-import { RuntimeError, defineErrors, AuthError } from '../errors';
+import { RuntimeError, defineErrors, AuthError } from '../app/errors';
 import { Endpoint } from '@pollium/readable-contracts/routing';
 import { logger } from '../app/logger';
 import { MiddlewareFn } from './middleware';

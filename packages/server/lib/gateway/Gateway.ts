@@ -1,9 +1,9 @@
-import { ClassMetadata } from '../metadata';
+import { ClassMetadata } from '../app/metadata';
 import ConnectionsRegistry, { OutboundMessage } from './ConnectionRegistry';
 import { createParamDecorator, getParamResolvers } from '../http/params';
-import { RuntimeError, GatewayError } from '../errors';
+import { RuntimeError, GatewayError } from '../app/errors';
 import { getClassMiddleware } from '../http/middleware';
-import { abortScope } from '../abort';
+import { abortScope } from '../app/abort';
 import { WebsocketPluginOptions, WebSocket } from '@fastify/websocket';
 import { FastifyRequest, FastifyInstance, FastifyReply } from 'fastify';
 

@@ -1,5 +1,5 @@
-import { ClassMetadata } from '../metadata';
-import { RequestError, ValidationError } from '../errors';
+import { ClassMetadata } from '../app/metadata';
+import { RequestError, ValidationError } from '../app/errors';
 import { IValidation } from 'typia';
 import { FastifyReply, FastifyRequest } from 'fastify';
 

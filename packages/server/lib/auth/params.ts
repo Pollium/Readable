@@ -1,4 +1,4 @@
-import { AuthError } from '../errors';
+import { AuthError } from '../app/errors';
 import { createParamDecorator, parseId } from '../http/params';
 import { FastifyRequest } from 'fastify';
 

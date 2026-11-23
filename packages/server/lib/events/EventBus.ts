@@ -1,8 +1,8 @@
-import { ClassMetadata } from '../metadata';
+import { ClassMetadata } from '../app/metadata';
 import { createRedis } from '../app/redis';
 import { readableConfig } from '../app/config';
 import { logger } from '../app/logger';
-import { EventError } from '../errors';
+import { EventError } from '../app/errors';
 import { Redis } from 'ioredis';
 import { randomBytes } from 'node:crypto';
 

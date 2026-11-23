@@ -1,5 +1,5 @@
 import BaseController, { Route } from '../lib/http/Controller';
-import { RuntimeError } from '../lib/errors';
+import { RuntimeError } from '../lib/app/errors';
 import { Middleware } from '../lib/http/middleware';
 import { ParamGuardRoute } from '../lib/auth/guards';
 import { JWTService, sessionCutoffs } from '../lib/auth/sessions';
