@@ -11,6 +11,12 @@ export interface RouteDefinition{
     method: HttpMethod;
     handlerName: string | symbol;
     absolute: boolean;
+    bodyLimit?: number;
+}
+
+export interface RouteOptions{
+    method?: HttpMethod;
+    bodyLimit?: number;
 }
 
 export interface StatusBinding{
@@ -39,14 +45,15 @@ export const getControllerPrefix = (ctor: object): string | undefined => {
 
 export const Route = <I, O>(
     route: string | Endpoint<I, O>,
-    method: HttpMethod = 'GET'
+    options: HttpMethod | RouteOptions = 'GET'
 ): MethodDecorator => {
     return (target, handlerName) => {
+        const { method = 'GET', bodyLimit } = typeof options === 'string' ? { method: options } : options;
         const definition = typeof route === 'string'
             ? { path: route, method, absolute: false }
             : { path: route.path, method: route.method, absolute: true };
 
-        routesByController.append(target.constructor, { ...definition, handlerName });
+        routesByController.append(target.constructor, { ...definition, bodyLimit, handlerName });
     };
 };
 
@@ -76,6 +83,7 @@ export default abstract class BaseController{
                 scope.route({
                     method: route.method,
                     url,
+                    bodyLimit: route.bodyLimit,
                     config: { rateLimit: getRateLimit(this.constructor, route.handlerName) },
                     preHandler: middlewares.map((mw) => async (req, reply) => await mw(req, reply)),
                     handler
