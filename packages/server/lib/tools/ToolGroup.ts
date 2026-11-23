@@ -1,4 +1,4 @@
-import { ClassMetadata } from './app/metadata';
+import { ClassMetadata } from '../app/metadata';
 import { ILlmSchema, IValidation } from 'typia';
 
 export enum ToolAccess{

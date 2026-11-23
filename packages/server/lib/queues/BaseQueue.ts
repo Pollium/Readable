@@ -1,10 +1,10 @@
-import { redisOptions } from './app/redis';
-import { logger } from './app/logger';
+import { redisOptions } from '../app/redis';
+import { logger } from '../app/logger';
 import { Queue, Worker, Job, RateLimiterOptions, JobsOptions, RepeatOptions } from 'bullmq';
 
 const WORKER_STAGES = ['active', 'completed', 'failed'] as const;
 
-export abstract class BaseQueue<T>{
+export default abstract class BaseQueue<T>{
     abstract readonly name: string;
     protected readonly concurrency: number = 1;
     protected readonly limiter: RateLimiterOptions | undefined = undefined;

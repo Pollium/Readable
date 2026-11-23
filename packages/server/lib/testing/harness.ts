@@ -1,5 +1,5 @@
+import BaseQueue from '../queues/BaseQueue';
 import { ConfigError } from '../app/errors';
-import { BaseQueue } from '../queues';
 import { eventBus } from '../events/EventBus';
 import { DataSource } from 'typeorm';
 import { FastifyInstance } from 'fastify';

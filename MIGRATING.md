@@ -39,7 +39,7 @@ statement, and the classes in the last column turned from default into named exp
 | `@readable/auth/SessionExpiresAt` | `@readable/auth/params` |  |
 | `@readable/auth/SocketAuthenticatedRoute` | `@readable/auth/guards` |  |
 | `@readable/auth/bearerPrincipal` | `@readable/auth/guards` |  |
-| `@readable/auth/errors` | `@readable/errors` |  |
+| `@readable/auth/errors` | `@readable/app/errors` |  |
 | `@readable/auth/pkce` | `@readable/auth/credentials` |  |
 | `@readable/auth/principalId` | `@readable/auth/params` |  |
 | `@readable/auth/types` | `@readable/auth/sessions` |  |
@@ -53,8 +53,8 @@ statement, and the classes in the last column turned from default into named exp
 | `@readable/contracts/rate-limit` | `@readable/http/middleware` |  |
 | `@readable/contracts/routing` | `@readable/http/Controller` |  |
 | `@readable/contracts/session` | `@readable/auth/sessions` |  |
-| `@readable/contracts/storage` | `@readable/storage` |  |
-| `@readable/contracts/tools` | `@readable/tools` |  |
+| `@readable/contracts/storage` | `@readable/storage/ObjectStorage` |  |
+| `@readable/contracts/tools` | `@readable/tools/ToolGroup` |  |
 | `@readable/contracts/upload` | `@readable/http/params` |  |
 | `@readable/controllers/BaseController` | `@readable/http/Controller` |  |
 | `@readable/controllers/responses/Paginated` | `@readable/http/responses` | `import Paginated` → `import { Paginated }` |
@@ -71,17 +71,17 @@ statement, and the classes in the last column turned from default into named exp
 | `@readable/decorators/middleware/Middleware` | `@readable/http/middleware` |  |
 | `@readable/decorators/middleware/RateLimit` | `@readable/http/middleware` |  |
 | `@readable/decorators/queues/EventGroup` | `@readable/events/EventBus` |  |
-| `@readable/decorators/tools/ToolGroup` | `@readable/tools` |  |
-| `@readable/errors/ConfigError` | `@readable/errors` |  |
-| `@readable/errors/CryptoError` | `@readable/errors` |  |
-| `@readable/errors/Event` | `@readable/errors` |  |
-| `@readable/errors/Gateway` | `@readable/errors` |  |
-| `@readable/errors/RateLimit` | `@readable/errors` |  |
-| `@readable/errors/Request` | `@readable/errors` |  |
-| `@readable/errors/Route` | `@readable/errors` |  |
-| `@readable/errors/RuntimeError` | `@readable/errors` | `import RuntimeError` → `import { RuntimeError }` |
-| `@readable/errors/SchemaError` | `@readable/errors` |  |
-| `@readable/errors/Validation` | `@readable/errors` | `import ValidationError` → `import { ValidationError }` |
+| `@readable/decorators/tools/ToolGroup` | `@readable/tools/ToolGroup` |  |
+| `@readable/errors/ConfigError` | `@readable/app/errors` |  |
+| `@readable/errors/CryptoError` | `@readable/app/errors` |  |
+| `@readable/errors/Event` | `@readable/app/errors` |  |
+| `@readable/errors/Gateway` | `@readable/app/errors` |  |
+| `@readable/errors/RateLimit` | `@readable/app/errors` |  |
+| `@readable/errors/Request` | `@readable/app/errors` |  |
+| `@readable/errors/Route` | `@readable/app/errors` |  |
+| `@readable/errors/RuntimeError` | `@readable/app/errors` | `import RuntimeError` → `import { RuntimeError }` |
+| `@readable/errors/SchemaError` | `@readable/app/errors` |  |
+| `@readable/errors/Validation` | `@readable/app/errors` | `import ValidationError` → `import { ValidationError }` |
 | `@readable/events/register-event-group` | `@readable/events/EventBus` |  |
 | `@readable/gateway/BaseGateway` | `@readable/gateway/Gateway` |  |
 | `@readable/gateway/create-context` | `@readable/gateway/Gateway` |  |
@@ -96,23 +96,21 @@ statement, and the classes in the last column turned from default into named exp
 | `@readable/models/BaseModel` | `@readable/database/models` | `import BaseModel` → `import { BaseModel }` |
 | `@readable/models/Fk` | `@readable/database/models` |  |
 | `@readable/models/Hidden` | `@readable/database/models` |  |
-| `@readable/queues/BaseQueue` | `@readable/queues` | `import BaseQueue` → `import { BaseQueue }` |
 | `@readable/redis/RedisClient` | `@readable/app/redis` |  |
 | `@readable/service-config` | `@readable/app/config` |  |
-| `@readable/services/AbortScope` | `@readable/abort` |  |
+| `@readable/services/AbortScope` | `@readable/app/abort` |  |
 | `@readable/services/ModuleDiscovery` | `@readable/app/discovery` | `import ModuleDiscovery` → `import { ModuleDiscovery }` |
 | `@readable/services/RedisSessionCutoffStore` | `@readable/auth/sessions` | `import RedisSessionCutoffStore` → `import { RedisSessionCutoffStore }` |
-| `@readable/services/SecretCipher` | `@readable/secrets` | `import SecretCipher` → `import { SecretCipher }` |
-| `@readable/storage/ObjectStorage` | `@readable/storage` |  |
+| `@readable/services/SecretCipher` | `@readable/auth/secrets` | `import SecretCipher` → `import { SecretCipher }` |
 | `@readable/testing/postgres` | `@readable/testing/harness` |  |
-| `@readable/utils/ClassMetadata` | `@readable/metadata` | `import ClassMetadata` → `import { ClassMetadata }` |
+| `@readable/utils/ClassMetadata` | `@readable/app/metadata` | `import ClassMetadata` → `import { ClassMetadata }` |
 | `@readable/utils/Logger` | `@readable/app/logger` |  |
 | `@readable/utils/controllers/parse-body` | `@readable/http/params` |  |
 | `@readable/utils/controllers/parse-id` | `@readable/http/params` |  |
 | `@readable/utils/controllers/parse-ordinal` | `@readable/http/params` |  |
 | `@readable/utils/controllers/parse-pagination` | `@readable/http/params` |  |
 | `@readable/utils/env` | `@readable/app/config` |  |
-| `@readable/utils/errors/define-errors` | `@readable/errors` |  |
+| `@readable/utils/errors/define-errors` | `@readable/app/errors` |  |
 | `@readable/utils/models/advisory-lock` | `@readable/database/queries` |  |
 | `@readable/utils/models/day-series` | `@readable/database/queries` |  |
 | `@readable/utils/models/find-or-throw` | `@readable/database/queries` |  |
@@ -120,7 +118,7 @@ statement, and the classes in the last column turned from default into named exp
 | `@readable/utils/models/next-position` | `@readable/database/queries` |  |
 | `@readable/utils/models/table-ref` | `@readable/database/queries` |  |
 | `@readable/utils/uuidv7` | `@readable/database/models` |  |
-| `@readable/vite/auto-validate-body` | `@readable/vite` |  |
+| `@readable/vite/auto-validate-body` | `@readable/http/auto-validate-body` |  |
 
 ## 4. Read the shared contracts from `@pollium/readable-contracts`
 

@@ -1,4 +1,4 @@
-import { SecretCipher } from '../lib/secrets';
+import { SecretCipher } from '../lib/auth/secrets';
 import { describe, expect, it } from 'vitest';
 
 describe('SecretCipher', () => {
