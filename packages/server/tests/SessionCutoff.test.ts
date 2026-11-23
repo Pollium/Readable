@@ -3,7 +3,7 @@ import AuthenticatedController from '../lib/auth/AuthenticatedController';
 import JWTService from '../lib/auth/JWTService';
 import { sessionCutoffs } from '../lib/auth/verifiedSession';
 import { configure } from '../lib/config';
-import { Route } from '../lib/decorators/controllers/Route';
+import { Route } from '../lib/http/Controller';
 import Fastify from 'fastify';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 

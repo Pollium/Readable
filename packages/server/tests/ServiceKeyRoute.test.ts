@@ -1,4 +1,4 @@
-import { ServiceKeyRoute } from '../lib/http/ServiceKeyRoute';
+import { ServiceKeyRoute } from '../lib/http/call';
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { describe, expect, it } from 'vitest';
 

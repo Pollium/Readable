@@ -1,7 +1,7 @@
 import { AuthenticatedRoute } from './AuthenticatedRoute';
 import { principalId } from './principalId';
-import { MiddlewareFn } from '../decorators/middleware/Middleware';
-import { parseId } from '../utils/controllers/parse-id';
+import { MiddlewareFn } from '../http/middleware';
+import { parseId } from '../http/params';
 
 export type MembershipAssertion = (scopeId: string, userId: string) => Promise<unknown>;
 

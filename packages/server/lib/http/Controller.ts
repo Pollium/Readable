@@ -1,14 +1,71 @@
-import PaginatedResponse from './responses/Paginated';
-import RawResponse from './responses/Raw';
-import RedirectResponse from './responses/Redirect';
-import { Handler } from '../contracts/routing';
-import { getParamResolvers } from '../decorators/controllers/Params';
-import { routesByController } from '../decorators/controllers/Route';
-import { getStatus } from '../decorators/controllers/Status';
-import { getMiddleware } from '../decorators/middleware/Middleware';
-import { getRateLimit } from '../decorators/middleware/RateLimit';
+import ClassMetadata from '../utils/ClassMetadata';
+import { HttpMethod, Endpoint } from '@pollium/readable-contracts/routing';
+import { Paginated, RawResponse, RedirectResponse } from './responses';
+import { getParamResolvers } from './params';
+import { getMiddleware, getRateLimit } from './middleware';
 import { RouteError } from '../errors';
-import { FastifyInstance } from 'fastify';
+import { FastifyReply, FastifyRequest, RouteGenericInterface, FastifyInstance } from 'fastify';
+
+export interface RouteDefinition{
+    path: string;
+    method: HttpMethod;
+    handlerName: string | symbol;
+    absolute: boolean;
+}
+
+export interface StatusBinding{
+    handlerName: string | symbol;
+    code: number;
+}
+
+export type Handler = (
+    req: FastifyRequest<RouteGenericInterface>,
+    reply: FastifyReply
+) => unknown;
+
+const prefixByController = new WeakMap<object, string>();
+
+export const Controller = (prefix: string): ClassDecorator => {
+    return (target) => {
+        prefixByController.set(target, prefix);
+    };
+};
+
+export const getControllerPrefix = (ctor: object): string | undefined => {
+    return prefixByController.get(ctor);
+};
+
+export const routesByController = new ClassMetadata<RouteDefinition>();
+
+export const Route = <I, O>(
+    route: string | Endpoint<I, O>,
+    method: HttpMethod = 'GET'
+): MethodDecorator => {
+    return (target, handlerName) => {
+        const definition = typeof route === 'string'
+            ? { path: route, method, absolute: false }
+            : { path: route.path, method: route.method, absolute: true };
+
+        routesByController.append(target.constructor, { ...definition, handlerName });
+    };
+};
+
+const statusByHandler = new ClassMetadata<StatusBinding>();
+
+export const Status = (code: number): MethodDecorator => {
+    return (target, handlerName) => {
+        statusByHandler.append(target.constructor, { handlerName, code });
+    };
+};
+
+export const getStatus = (
+    ctor: object, 
+    handlerName: string | symbol
+): number | undefined => {
+    return statusByHandler
+        .get(ctor)
+        .find((binding) => binding.handlerName === handlerName)?.code;
+};
 
 export default abstract class BaseController{
     async register(app: FastifyInstance, prefix: string){
@@ -68,7 +125,7 @@ export default abstract class BaseController{
                 return reply.redirect(result.url, result.status);
             }
 
-            if(result instanceof PaginatedResponse){
+            if(result instanceof Paginated){
                 return reply
                     .status(override ?? 200)
                     .send({

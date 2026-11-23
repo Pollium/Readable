@@ -1,5 +1,4 @@
-import { createParamDecorator } from '../decorators/controllers/Params';
-import { parseId } from '../utils/controllers/parse-id';
+import { createParamDecorator, parseId } from '../http/params';
 import { principalId } from './principalId';
 
 export interface OwnedResolver<T>{

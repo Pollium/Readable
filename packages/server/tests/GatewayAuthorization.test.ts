@@ -7,7 +7,7 @@ import { configure } from '../lib/config';
 import { Channel } from '../lib/decorators/gateway/Channel';
 import { OnMessage } from '../lib/decorators/gateway/Gateway';
 import { Socket } from '../lib/decorators/gateway/Params';
-import { Middleware } from '../lib/decorators/middleware/Middleware';
+import { Middleware } from '../lib/http/middleware';
 import websocket, { WebSocket } from '@fastify/websocket';
 import Fastify, { FastifyInstance } from 'fastify';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';

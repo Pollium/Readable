@@ -1,5 +1,5 @@
-import BaseController from '../controllers/BaseController';
-import { Middleware } from '../decorators/middleware/Middleware';
+import BaseController from '../http/Controller';
+import { Middleware } from '../http/middleware';
 import { AuthenticatedRoute } from './AuthenticatedRoute';
 
 @Middleware(AuthenticatedRoute)

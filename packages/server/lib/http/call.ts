@@ -1,6 +1,8 @@
-import { RuntimeError, defineErrors } from '../errors';
+import { RuntimeError, defineErrors, AuthError } from '../errors';
 import { Endpoint } from '@pollium/readable-contracts/routing';
 import { logger } from '../utils/Logger';
+import { MiddlewareFn } from './middleware';
+import { timingSafeEqual } from 'node:crypto';
 
 export const CallError = defineErrors({
     domain: 'Call',
@@ -87,4 +89,27 @@ export const call = async <I, O>(
     if(response.status === 204) return undefined as O;
 
     return unwrap<O>(await response.json());
+};
+
+export class ServiceClient{
+    #host: Host;
+
+    constructor(host: Host){
+        this.#host = host;
+    }
+
+    call<I, O>(endpoint: Endpoint<I, O>, options?: CallOptions<I>): Promise<O>{
+        return call(this.#host, endpoint, options);
+    }
+}
+
+export const ServiceKeyRoute = (header: string, expected: string): MiddlewareFn => (req) => {
+    const presented = req.headers[header];
+    if(typeof presented !== 'string' || presented === '') throw AuthError.Unauthorized();
+
+    const left = Buffer.from(presented);
+    const right = Buffer.from(expected);
+    if(left.length !== right.length || !timingSafeEqual(left, right)){
+        throw AuthError.Unauthorized();
+    }
 };

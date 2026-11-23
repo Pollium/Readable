@@ -1,7 +1,28 @@
-import ClassMetadata from '../../utils/ClassMetadata';
-import { MiddlewareBinding, MiddlewareFn } from '../../contracts/middleware';
+import ClassMetadata from '../utils/ClassMetadata';
+import { FastifyReply, FastifyRequest } from 'fastify';
+import { RateLimitOptions as RouteRateLimit } from '@fastify/rate-limit';
 
-export type { MiddlewareFn };
+export type MiddlewareFn = (
+    req: FastifyRequest, 
+    reply: FastifyReply
+) => void | Promise<void>;
+
+export interface MiddlewareBinding{
+    handlerName: string | symbol | null;
+    middleware: MiddlewareFn;
+}
+
+export type RateLimitWindow = `${number}${'s' | 'm' | 'h'}`;
+
+export interface RateLimitOptions{
+    max: number;
+    window: RateLimitWindow;
+}
+
+export interface RateLimitBinding{
+    handlerName: string | symbol;
+    limit: RouteRateLimit;
+}
 
 const bindingsByController = new ClassMetadata<MiddlewareBinding>();
 
@@ -38,4 +59,21 @@ export const getClassMiddleware = (ctor: object): MiddlewareFn[] => {
     return bindingsOf(ctor)
         .filter((binding) => binding.handlerName === null)
         .map((binding) => binding.middleware);
+};
+
+const limitsByHandler = new ClassMetadata<RateLimitBinding>();
+
+export const RateLimit = ({ max, window }: RateLimitOptions): MethodDecorator => {
+    return (target, handlerName) => {
+        limitsByHandler.append(target.constructor, { handlerName, limit: { max, timeWindow: window } });
+    };
+};
+
+export const getRateLimit = (
+    ctor: object,
+    handlerName: string | symbol
+): RouteRateLimit | undefined => {
+    return limitsByHandler
+        .get(ctor)
+        .find((binding) => binding.handlerName === handlerName)?.limit;
 };

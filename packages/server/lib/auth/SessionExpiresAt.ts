@@ -1,4 +1,4 @@
-import { createParamDecorator } from '../decorators/controllers/Params';
+import { createParamDecorator } from '../http/params';
 import { AuthError } from '../errors';
 import { FastifyRequest } from 'fastify';
 

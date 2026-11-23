@@ -1,5 +1,5 @@
 import AuthenticatedController from '../lib/auth/AuthenticatedController';
-import { Route } from '../lib/decorators/controllers/Route';
+import { Route } from '../lib/http/Controller';
 import Fastify from 'fastify';
 import { describe, expect, it } from 'vitest';
 

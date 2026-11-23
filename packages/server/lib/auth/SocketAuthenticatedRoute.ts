@@ -1,4 +1,4 @@
-import { MiddlewareFn } from '../decorators/middleware/Middleware';
+import { MiddlewareFn } from '../http/middleware';
 import { AuthError } from '../errors';
 import { verifiedSession } from './verifiedSession';
 

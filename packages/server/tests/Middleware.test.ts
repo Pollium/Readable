@@ -1,4 +1,4 @@
-import { Middleware, getClassMiddleware, getMiddleware } from '../lib/decorators/middleware/Middleware';
+import { Middleware, getClassMiddleware, getMiddleware } from '../lib/http/middleware';
 import { describe, expect, it } from 'vitest';
 
 const root = () => {};

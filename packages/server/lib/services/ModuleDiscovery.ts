@@ -1,7 +1,6 @@
-import BaseController from '../controllers/BaseController';
+import BaseController, { getControllerPrefix } from '../http/Controller';
 import BaseGateway from '../gateway/BaseGateway';
 import BaseQueue from '../queues/BaseQueue';
-import { getControllerPrefix } from '../decorators/controllers/Controller';
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
