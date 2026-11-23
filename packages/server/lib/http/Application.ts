@@ -33,7 +33,7 @@ export interface ApplicationOptions{
     corsOrigins: string[];
     log: ApplicationLog;
     discover: () => Promise<Discovered>;
-    createDataSource: (entities: Function[]) => DataSource;
+    createDataSource?: (entities: Function[]) => DataSource;
     plugins?: (app: FastifyInstance) => Promise<void>;
     afterDatabase?: (dataSource: DataSource) => Promise<void>;
     afterMount?: (discovered: Discovered) => void;
@@ -84,9 +84,7 @@ export default class Application{
 
         const discovered = await this.#options.discover();
 
-        this.#dataSource = this.#options.createDataSource(discovered.entities);
-        await this.#dataSource.initialize();
-        if(this.#options.afterDatabase) await this.#options.afterDatabase(this.#dataSource);
+        await this.#openDatabase(discovered.entities);
 
         this.#registerErrorHandler();
         this.#registerRequestLogging();
@@ -111,6 +109,14 @@ export default class Application{
         await eventBus.close();
         await broadcast.close();
         await this.#dataSource?.destroy();
+    }
+
+    async #openDatabase(entities: Function[]){
+        if(!this.#options.createDataSource) return;
+
+        this.#dataSource = this.#options.createDataSource(entities);
+        await this.#dataSource.initialize();
+        if(this.#options.afterDatabase) await this.#options.afterDatabase(this.#dataSource);
     }
 
     #registerErrorHandler(){
