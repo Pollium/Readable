@@ -1,7 +1,7 @@
 {
   "name": "@pollium/readable",
   "version": "0.0.0",
-  "description": "The TypeScript framework for the AI era: Fastify, TypeORM and Redis behind a few decorators and one folder convention.",
+  "description": "The TypeScript framework for the AI era.",
   "type": "module",
   "repository": {
     "type": "git",
