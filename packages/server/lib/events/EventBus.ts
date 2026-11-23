@@ -143,13 +143,11 @@ export const getEvents = (ctor: object): EventBinding[] => {
     return eventsByClass.get(ctor);
 };
 
-type EventHandler = (payload: unknown) => unknown;
-
 export const registerEventGroup = (GroupClass: new () => object) => {
     const group = getEventGroup(GroupClass);
     if(!group) throw EventError.UndefinedGroup();
 
-    const instance = new GroupClass() as Record<string | symbol, EventHandler>;
+    const instance = new GroupClass() as Record<string | symbol, Handler>;
 
     for(const { event, handlerName } of getEvents(GroupClass)){
         eventBus.subscribe(`${group}.${event}`, instance[handlerName].bind(instance));
