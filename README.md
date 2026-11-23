@@ -1,9 +1,8 @@
 # Readable
 
-Readable is the backend framework behind Pollium's APIs: Fastify, TypeORM, typia, Redis and BullMQ
-behind a handful of decorators and one folder convention.
+Readable is the backend framework behind Pollium's APIs.
 
-AI writes more code today than anyone can stop to read. If every line still needs a human to follow
+**Why?** AI writes more code today than anyone can stop to read. If every line still needs a human to follow
 it, that human is the bottleneck. Readable makes the code an API needs small and decided in advance,
 so what is left to read is the business logic. Every app lays out the same way, so you know where
 everything is in a codebase you have never opened.
