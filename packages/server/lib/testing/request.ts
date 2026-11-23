@@ -1,4 +1,4 @@
-import JWTService from '../auth/JWTService';
+import { JWTService } from '../auth/sessions';
 import { Endpoint, HttpMethod } from '@pollium/readable-contracts/routing';
 import { FastifyInstance } from 'fastify';
 import { expect } from 'vitest';

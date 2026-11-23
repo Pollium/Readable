@@ -1,10 +1,10 @@
-import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
+import { randomBytes, scrypt as scryptCallback, timingSafeEqual, createHash } from 'node:crypto';
 import { promisify } from 'node:util';
 
 const scrypt = promisify(scryptCallback);
 const KEY_LENGTH = 64;
 
-export default class PasswordService{
+export class PasswordService{
     async hash(password: string): Promise<string>{
         const salt = randomBytes(16).toString('hex');
         const derived = (await scrypt(password, salt, KEY_LENGTH)) as Buffer;
@@ -20,3 +20,10 @@ export default class PasswordService{
         return derived.length === expected.length && timingSafeEqual(derived, expected);
     }
 }
+
+export const answersChallenge = (challenge: string, verifier: string): boolean => {
+    const expected = Buffer.from(challenge);
+    const actual = Buffer.from(createHash('sha256').update(verifier).digest('base64url'));
+
+    return expected.length === actual.length && timingSafeEqual(expected, actual);
+};

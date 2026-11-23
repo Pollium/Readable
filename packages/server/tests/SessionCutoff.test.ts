@@ -1,10 +1,9 @@
 import 'reflect-metadata';
-import AuthenticatedController from '../lib/auth/AuthenticatedController';
-import JWTService from '../lib/auth/JWTService';
-import { sessionCutoffs } from '../lib/auth/verifiedSession';
 import { configure } from '../lib/config';
 import { Route } from '../lib/http/Controller';
 import Fastify from 'fastify';
+import { AuthenticatedController } from '../lib/auth/guards';
+import { JWTService, sessionCutoffs } from '../lib/auth/sessions';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 class ProbeController extends AuthenticatedController{

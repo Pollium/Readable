@@ -11,7 +11,7 @@ vi.mock('../lib/redis/RedisClient', () => ({
     }
 }));
 
-const { default: RedisSessionCutoffStore } = await import('../lib/services/RedisSessionCutoffStore');
+const { RedisSessionCutoffStore } = await import('../lib/auth/sessions');
 
 describe('RedisSessionCutoffStore', () => {
     const store = new RedisSessionCutoffStore();

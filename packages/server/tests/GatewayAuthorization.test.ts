@@ -1,8 +1,7 @@
+import { JWTService, sessionCutoffs } from '../lib/auth/sessions';
 import 'reflect-metadata';
 import BaseGateway, { ACCESS_REVOKED, REAUTHORIZE_MS, SESSION_EXPIRED } from '../lib/gateway/BaseGateway';
-import JWTService from '../lib/auth/JWTService';
-import { SocketAuthenticatedRoute } from '../lib/auth/SocketAuthenticatedRoute';
-import { sessionCutoffs } from '../lib/auth/verifiedSession';
+import { SocketAuthenticatedRoute } from '../lib/auth/guards';
 import { configure } from '../lib/config';
 import { Channel } from '../lib/decorators/gateway/Channel';
 import { OnMessage } from '../lib/decorators/gateway/Gateway';
