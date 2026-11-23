@@ -140,8 +140,8 @@ export const Reply = (): ParameterDecorator => createParamDecorator((_req, reply
 export const Param = (name: string): ParameterDecorator =>
     createParamDecorator((req) => (req.params as Record<string, string>)[name]);
 
-export const Query = (name: string): ParameterDecorator =>
-    createParamDecorator((req) => (req.query as Record<string, string>)[name]);
+export const Query = (name?: string): ParameterDecorator =>
+    createParamDecorator((req) => name === undefined ? req.query : (req.query as Record<string, string>)[name]);
 
 export const IdQuery = (name: string): ParameterDecorator =>
     createParamDecorator((req) => parseId((req.query as Record<string, string>)[name]));
