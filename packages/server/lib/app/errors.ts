@@ -7,6 +7,8 @@ import {
     RateLimitErrors
 } from '@pollium/readable-contracts/errors';
 
+type ErrorFactory = (detail?: string) => RuntimeError;
+
 export class RuntimeError extends Error{
     public statusCode: number;
 
@@ -26,8 +28,6 @@ export class ValidationError extends RuntimeError{
     }
 }
 
-type ErrorFactory = (detail?: string) => RuntimeError;
-
 export const defineErrors = <T extends ErrorTable>({ domain, causes }: T): Record<keyof T['causes'], ErrorFactory> => {
     const factories = {} as Record<keyof T['causes'], ErrorFactory>;
     for(const [cause, status] of Object.entries(causes)){
@@ -40,13 +40,9 @@ export const defineErrors = <T extends ErrorTable>({ domain, causes }: T): Recor
 };
 
 export const RequestError = defineErrors(RequestErrors);
-
 export const ServerError = defineErrors(ServerErrors);
-
 export const AuthError = defineErrors(AuthErrors);
-
 export const GatewayError = defineErrors(GatewayErrors);
-
 export const RateLimitError = defineErrors(RateLimitErrors);
 
 export const RouteError = defineErrors({

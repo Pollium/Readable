@@ -33,6 +33,11 @@ export interface ApplicationOptions{
     afterMount?: (discovered: Discovered) => void;
 }
 
+export interface ListenTarget{
+    start(): Promise<void>;
+    stop(): Promise<void>;
+}
+
 export default class Application{
     #app!: FastifyInstance;
     #dataSource?: DataSource;
@@ -154,11 +159,6 @@ export default class Application{
             this.#queues.push(queue);
         }
     }
-}
-
-export interface ListenTarget{
-    start(): Promise<void>;
-    stop(): Promise<void>;
 }
 
 export const listen = (app: ListenTarget, failed = 'Failed to start server') => {

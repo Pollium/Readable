@@ -9,7 +9,6 @@ export interface UploadedFile{
 }
 
 export type ParamResolver = (req: FastifyRequest, reply?: FastifyReply) => unknown;
-
 export type BodyValidator<T> = (input: unknown) => IValidation<T>;
 
 export interface ParamBinding{

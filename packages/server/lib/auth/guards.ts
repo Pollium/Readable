@@ -6,6 +6,8 @@ import { principalId } from './params';
 import { parseId } from '../http/params';
 import { FastifyRequest } from 'fastify';
 
+export type MembershipAssertion = (scopeId: string, userId: string) => Promise<unknown>;
+
 export const bearerSession = async (req: FastifyRequest): Promise<TokenPayload | null> => {
     const scheme = 'Bearer ';
     const header = req.headers.authorization;
@@ -30,8 +32,6 @@ export const AuthenticatedRoute: MiddlewareFn = async (req) => {
 
 @Middleware(AuthenticatedRoute)
 export abstract class AuthenticatedController extends BaseController{}
-
-export type MembershipAssertion = (scopeId: string, userId: string) => Promise<unknown>;
 
 export const ParamGuardRoute = (param: string, assert: MembershipAssertion): MiddlewareFn => async (req, reply) => {
     await AuthenticatedRoute(req, reply);

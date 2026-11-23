@@ -15,15 +15,16 @@ declare global{
     interface EventMap{}
 }
 
-type Handler = (payload: unknown) => unknown;
-
-const origin = randomBytes(8).toString('hex');
-
 interface Envelope{
     origin: string;
     event: string;
     payload: unknown;
 }
+
+type Handler = (payload: unknown) => unknown;
+const origin = randomBytes(8).toString('hex');
+const groupByClass = new WeakMap<object, string>();
+const eventsByClass = new ClassMetadata<EventBinding>();
 
 class EventBus{
     #handlers = new Map<string, Handler[]>();
@@ -119,9 +120,6 @@ class EventBus{
 }
 
 export const eventBus = new EventBus();
-
-const groupByClass = new WeakMap<object, string>();
-const eventsByClass = new ClassMetadata<EventBinding>();
 
 export const DefineEventGroup = (group: string): ClassDecorator => {
     return (target) => {

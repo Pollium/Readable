@@ -12,8 +12,6 @@ export interface MiddlewareBinding{
     middleware: MiddlewareFn;
 }
 
-export type RateLimitWindow = `${number}${'s' | 'm' | 'h'}`;
-
 export interface RateLimitOptions{
     max: number;
     window: RateLimitWindow;
@@ -24,7 +22,9 @@ export interface RateLimitBinding{
     limit: RouteRateLimit;
 }
 
+export type RateLimitWindow = `${number}${'s' | 'm' | 'h'}`;
 const bindingsByController = new ClassMetadata<MiddlewareBinding>();
+const limitsByHandler = new ClassMetadata<RateLimitBinding>();
 
 const bindingsOf = (ctor: object): MiddlewareBinding[] => {
     const parent: unknown = Object.getPrototypeOf(ctor);
@@ -60,8 +60,6 @@ export const getClassMiddleware = (ctor: object): MiddlewareFn[] => {
         .filter((binding) => binding.handlerName === null)
         .map((binding) => binding.middleware);
 };
-
-const limitsByHandler = new ClassMetadata<RateLimitBinding>();
 
 export const RateLimit = ({ max, window }: RateLimitOptions): MethodDecorator => {
     return (target, handlerName) => {

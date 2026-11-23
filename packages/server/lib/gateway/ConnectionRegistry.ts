@@ -5,12 +5,12 @@ export interface OutboundMessage<T>{
     data: T;
 }
 
-export type RoomAccess = () => Promise<unknown>;
-
 export interface RoomGrant{
     room: string;
     access: RoomAccess;
 }
+
+export type RoomAccess = () => Promise<unknown>;
 
 export default class ConnectionsRegistry{
     #sockets = new Set<WebSocket>();

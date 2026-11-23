@@ -2,6 +2,10 @@ import { AuthError } from '../app/errors';
 import { createParamDecorator, parseId } from '../http/params';
 import { FastifyRequest } from 'fastify';
 
+export interface OwnedResolver<T>{
+    getOwned(userId: string, id: string): Promise<T>;
+}
+
 export const principalId = (req: FastifyRequest): string => {
     if(!req.principal) throw AuthError.Unauthorized();
     return req.principal.userId;
@@ -16,10 +20,6 @@ const sessionExpiresAt = (req: FastifyRequest): number => {
 };
 
 export const SessionExpiresAt = (): ParameterDecorator => createParamDecorator(sessionExpiresAt);
-
-export interface OwnedResolver<T>{
-    getOwned(userId: string, id: string): Promise<T>;
-}
 
 export const Owned = <T>(Service: new () => OwnedResolver<T>, param = 'id'): ParameterDecorator =>
     createParamDecorator((req) => {

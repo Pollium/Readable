@@ -8,8 +8,12 @@ import {
 } from 'typeorm';
 import { v7 as uuidv7, NIL as NIL_UUID } from 'uuid';
 
-export { uuidv7, NIL_UUID };
+export interface FkOptions{
+    onDelete?: 'CASCADE' | 'SET NULL' | 'RESTRICT' | 'NO ACTION';
+    nullable?: boolean;
+}
 
+export { uuidv7, NIL_UUID };
 const hiddenFields = new WeakMap<object, Set<string>>();
 
 export const Hidden = (): PropertyDecorator => {
@@ -38,11 +42,6 @@ export const getHiddenFields = (ctor: object): Set<string> => {
     }
     return collected;
 };
-
-export interface FkOptions{
-    onDelete?: 'CASCADE' | 'SET NULL' | 'RESTRICT' | 'NO ACTION';
-    nullable?: boolean;
-}
 
 export const Fk = (entity: string, options: FkOptions = {}): PropertyDecorator =>
     (target, propertyKey) => {

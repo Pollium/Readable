@@ -34,7 +34,6 @@ export interface ToolBinding{
 }
 
 export type ToolHandler = (context: ToolContext, input: never) => unknown;
-
 const groupByClass = new WeakMap<object, string>();
 const toolsByClass = new ClassMetadata<ToolBinding>();
 

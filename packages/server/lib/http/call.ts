@@ -4,17 +4,6 @@ import { logger } from '../app/logger';
 import { MiddlewareFn } from './middleware';
 import { timingSafeEqual } from 'node:crypto';
 
-export const CallError = defineErrors({
-    domain: 'Call',
-    causes: {
-        Failed: 502,
-        Rejected: 502
-    }
-} as const);
-
-export const isNotFound = (error: unknown): boolean =>
-    error instanceof RuntimeError && error.statusCode === 404;
-
 export interface Host{
     url: string;
     header: string;
@@ -26,6 +15,17 @@ export interface CallOptions<I>{
     query?: Record<string, string>;
     body?: I;
 }
+
+export const CallError = defineErrors({
+    domain: 'Call',
+    causes: {
+        Failed: 502,
+        Rejected: 502
+    }
+} as const);
+
+export const isNotFound = (error: unknown): boolean =>
+    error instanceof RuntimeError && error.statusCode === 404;
 
 export const interpolate = (path: string, params: Record<string, string> = {}): string =>
     path.replace(/:(\w+)/g, (_, name: string) => encodeURIComponent(params[name] ?? ''));

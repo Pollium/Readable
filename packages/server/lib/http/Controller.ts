@@ -24,6 +24,8 @@ export type Handler = (
 ) => unknown;
 
 const prefixByController = new WeakMap<object, string>();
+const statusByHandler = new ClassMetadata<StatusBinding>();
+export const routesByController = new ClassMetadata<RouteDefinition>();
 
 export const Controller = (prefix: string): ClassDecorator => {
     return (target) => {
@@ -34,8 +36,6 @@ export const Controller = (prefix: string): ClassDecorator => {
 export const getControllerPrefix = (ctor: object): string | undefined => {
     return prefixByController.get(ctor);
 };
-
-export const routesByController = new ClassMetadata<RouteDefinition>();
 
 export const Route = <I, O>(
     route: string | Endpoint<I, O>,
@@ -49,8 +49,6 @@ export const Route = <I, O>(
         routesByController.append(target.constructor, { ...definition, handlerName });
     };
 };
-
-const statusByHandler = new ClassMetadata<StatusBinding>();
 
 export const Status = (code: number): MethodDecorator => {
     return (target, handlerName) => {

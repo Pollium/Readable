@@ -14,6 +14,18 @@ export interface TableRef{
     column(property: string): string;
 }
 
+export interface DayCount{
+    date: string;
+    count: number;
+}
+
+interface DayCountRow{
+    date: string;
+    count: string;
+}
+
+type Positioned = BaseEntity & { position: number };
+
 export const tableRef = (manager: EntityManager, target: EntityTarget<ObjectLiteral>): TableRef => {
     const metadata = manager.connection.getMetadata(target);
 
@@ -39,8 +51,6 @@ export const isUniqueViolation = (error: unknown): error is QueryFailedError => 
     return (error instanceof QueryFailedError && error.driverError.code === '23505');
 };
 
-type Positioned = BaseEntity & { position: number };
-
 export const nextPosition = async <T extends Positioned>(
     model: { new (): T } & typeof BaseEntity,
     scope: FindOptionsWhere<T>
@@ -58,16 +68,6 @@ export const nextPosition = async <T extends Positioned>(
 export const advisoryLock = async (manager: EntityManager, namespace: number, key: string) => {
     await manager.query('SELECT pg_advisory_xact_lock(hashtextextended($1, $2))', [key, namespace]);
 };
-
-export interface DayCount{
-    date: string;
-    count: number;
-}
-
-interface DayCountRow{
-    date: string;
-    count: string;
-}
 
 const SERIES = `
     generate_series(
