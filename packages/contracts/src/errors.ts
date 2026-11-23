@@ -53,3 +53,12 @@ export const AuthErrors = {
 } as const satisfies ErrorTable;
 
 export type AuthErrorCode = ErrorCode<typeof AuthErrors>;
+
+export const ServerErrors = {
+    domain: 'Server',
+    causes: {
+        Internal: 500
+    }
+} as const satisfies ErrorTable;
+
+export type ServerErrorCode = ErrorCode<typeof ServerErrors>;

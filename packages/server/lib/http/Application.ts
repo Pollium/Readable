@@ -8,6 +8,7 @@ import { ApiError } from '@pollium/readable-contracts/http';
 import { HttpMethod } from '@pollium/readable-contracts/routing';
 import { LogLevel } from '../contracts/logging';
 import { RateLimitError } from '../errors/RateLimit';
+import { ServerError } from '../errors/Server';
 import { broadcast } from '../events/Broadcast';
 import { registerCompression } from './compression';
 import { eventBus } from '../events/EventBus';
@@ -114,17 +115,16 @@ export default class Application{
 
     #registerErrorHandler(){
         this.#app.setErrorHandler((err, req, reply) => {
-            const status = err instanceof RuntimeError ? err.statusCode : 500;
-            const message = err instanceof Error ? err.message : 'Internal Server Error';
+            const answer = err instanceof RuntimeError ? err : ServerError.Internal();
 
-            if(status >= 500){
-                logger.error(`${req.method} ${req.url}`, err, { scope: 'http', statusCode: status });
+            if(answer.statusCode >= 500){
+                logger.error(`${req.method} ${req.url}`, err, { scope: 'http', statusCode: answer.statusCode });
             }
 
-            const payload: ApiError = { error: message };
+            const payload: ApiError = { error: answer.message };
             if(err instanceof ValidationError) payload.errors = err.errors;
 
-            reply.status(status).send(payload);
+            reply.status(answer.statusCode).send(payload);
         });
     }
 

@@ -1,4 +1,5 @@
 import Application from '../lib/http/Application';
+import RuntimeError from '../lib/errors/RuntimeError';
 import ModuleDiscovery from '../lib/services/ModuleDiscovery';
 import { createDataSource } from '../lib/http/data-source';
 import { configure } from '../lib/config';
@@ -28,6 +29,12 @@ const application = new Application({
 
 const app = await application.build({ queues: false });
 app.get('/client', (req) => ({ ip: req.ip }));
+app.get('/broken', async () => {
+    throw new Error('connect ECONNREFUSED 127.0.0.1:5432');
+});
+app.get('/refused', async () => {
+    throw new RuntimeError('Probe::Refused', 502);
+});
 
 const clientOf = async (remoteAddress: string, forwardedFor: string): Promise<string> => {
     const res = await app.inject({
@@ -40,9 +47,9 @@ const clientOf = async (remoteAddress: string, forwardedFor: string): Promise<st
     return res.json<ClientAddress>().ip;
 };
 
-describe('Application client address', () => {
-    afterAll(() => application.stop());
+afterAll(() => application.stop());
 
+describe('Application client address', () => {
     it('reads the visitor a proxy on the private network forwarded', async () => {
         await expect(clientOf(NGINX, VISITOR)).resolves.toBe(VISITOR);
     });
@@ -53,5 +60,21 @@ describe('Application client address', () => {
 
     it('ignores the forwarded address of a client that connects directly', async () => {
         await expect(clientOf(DIRECT_CLIENT, VISITOR)).resolves.toBe(DIRECT_CLIENT);
+    });
+});
+
+describe('Application errors', () => {
+    it('answers an unexpected failure without its text', async () => {
+        const res = await app.inject({ method: 'GET', url: '/broken' });
+
+        expect(res.statusCode).toBe(500);
+        expect(res.json()).toEqual({ error: 'Server::Internal' });
+    });
+
+    it('answers a domain failure with its code', async () => {
+        const res = await app.inject({ method: 'GET', url: '/refused' });
+
+        expect(res.statusCode).toBe(502);
+        expect(res.json()).toEqual({ error: 'Probe::Refused' });
     });
 });
