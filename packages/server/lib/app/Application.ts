@@ -25,6 +25,7 @@ export interface ApplicationLog{
 export interface ApplicationOptions{
     port: number;
     corsOrigins: string[];
+    publicPaths?: string[];
     log: ApplicationLog;
     discover: () => Promise<Discovered>;
     createDataSource?: (entities: Function[]) => DataSource;
@@ -64,9 +65,15 @@ export default class Application{
         });
 
         await this.#app.register(cors, {
-            origin: this.#options.corsOrigins,
-            credentials: true,
-            methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE']
+            delegator: (req, resolve) => {
+                const open = this.#options.publicPaths?.some((path) => req.url.startsWith(path)) ?? false;
+
+                resolve(null, {
+                    origin: open ? true : this.#options.corsOrigins,
+                    credentials: !open,
+                    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE']
+                });
+            }
         });
         await this.#app.register(rateLimit, {
             global: false,
