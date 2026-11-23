@@ -26,33 +26,34 @@ export interface SessionCutoffStore{
 }
 
 export const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
-const ALGORITHM = 'HS256';
 
 export class JWTService{
+    #algorithm = 'HS256' as const;
+
     sign(userId: string): string{
-        return jwt.sign({ sub: String(userId) }, jwtSecret(), { algorithm: ALGORITHM, expiresIn: SESSION_TTL_SECONDS });
+        return jwt.sign({ sub: String(userId) }, jwtSecret(), { algorithm: this.#algorithm, expiresIn: SESSION_TTL_SECONDS });
     }
 
     signUntil(userId: string, expiresAt: number): string{
-        return jwt.sign({ sub: String(userId), exp: expiresAt }, jwtSecret(), { algorithm: ALGORITHM });
+        return jwt.sign({ sub: String(userId), exp: expiresAt }, jwtSecret(), { algorithm: this.#algorithm });
     }
 
     verify(token: string): TokenPayload{
-        return jwt.verify(token, jwtSecret(), { algorithms: [ALGORITHM] }) as TokenPayload;
+        return jwt.verify(token, jwtSecret(), { algorithms: [this.#algorithm] }) as TokenPayload;
     }
 }
 
-const PREFIX = 'session:cutoff:';
-
 export class RedisSessionCutoffStore implements SessionCutoffStore{
+    #prefix = 'session:cutoff:';
+
     async cutoffOf(userId: string): Promise<number | null>{
-        const value = await redis.get(`${PREFIX}${userId}`);
+        const value = await redis.get(`${this.#prefix}${userId}`);
 
         return value === null ? null : Number(value);
     }
 
     async cut(userId: string){
-        await redis.set(`${PREFIX}${userId}`, String(Math.floor(Date.now() / 1000)), 'EX', SESSION_TTL_SECONDS);
+        await redis.set(`${this.#prefix}${userId}`, String(Math.floor(Date.now() / 1000)), 'EX', SESSION_TTL_SECONDS);
     }
 }
 

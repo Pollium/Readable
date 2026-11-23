@@ -38,12 +38,10 @@ export interface ListOptions{
     cursor?: string;
 }
 
-const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
-const SCRIPTABLE_TYPE = /^(text\/html|application\/xhtml\+xml|image\/svg\+xml|text\/xml|application\/xml)\b/i;
-
 class ObjectStorage{
     #ensured?: Promise<void>;
     #client?: S3Client;
+    #immutableCacheControl = 'public, max-age=31536000, immutable';
 
     #s3(){
         this.#client ??= new S3Client({
@@ -71,7 +69,7 @@ class ObjectStorage{
         body: string | Uint8Array,
         contentType: string
     ){
-        return this.#write(key, body, contentType, IMMUTABLE_CACHE_CONTROL);
+        return this.#write(key, body, contentType, this.#immutableCacheControl);
     }
 
     putDownload(
@@ -80,7 +78,7 @@ class ObjectStorage{
         contentType: string,
         filename: string
     ){
-        return this.#write(key, body, contentType, IMMUTABLE_CACHE_CONTROL, `attachment; filename="${filename.replace(/["\\]/g, '')}"`);
+        return this.#write(key, body, contentType, this.#immutableCacheControl, `attachment; filename="${filename.replace(/["\\]/g, '')}"`);
     }
 
     async get(key: string): Promise<Buffer>{
@@ -182,6 +180,8 @@ class ObjectStorage{
         cacheControl?: string,
         contentDisposition?: string
     ){
+        const scriptableType = /^(text\/html|application\/xhtml\+xml|image\/svg\+xml|text\/xml|application\/xml)\b/i;
+
         await this.#ensureBucket();
         await this.#s3().send(new PutObjectCommand({
             Bucket: storageConfig().bucket,
@@ -189,7 +189,7 @@ class ObjectStorage{
             Body: body,
             ContentType: contentType,
             CacheControl: cacheControl,
-            ContentDisposition: contentDisposition ?? (SCRIPTABLE_TYPE.test(contentType) ? 'attachment' : undefined)
+            ContentDisposition: contentDisposition ?? (scriptableType.test(contentType) ? 'attachment' : undefined)
         }));
     }
 

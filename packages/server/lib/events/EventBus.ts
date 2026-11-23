@@ -17,7 +17,6 @@ declare global{
 
 type Handler = (payload: unknown) => unknown;
 
-const channelOf = () => `${readableConfig().name}:events`;
 const origin = randomBytes(8).toString('hex');
 
 interface Envelope{
@@ -80,7 +79,7 @@ class EventBus{
         try{
             this.#publisher ??= this.#connect();
             const envelope: Envelope = { origin, event, payload };
-            await this.#publisher.publish(channelOf(), JSON.stringify(envelope));
+            await this.#publisher.publish(this.#channel, JSON.stringify(envelope));
         }catch(error){
             logger.error('EventBus::PublishFailed', error);
         }
@@ -95,7 +94,7 @@ class EventBus{
             return;
         }
 
-        void this.#subscriber.subscribe(channelOf());
+        void this.#subscriber.subscribe(this.#channel);
         this.#subscriber.on('message', (_channel: string, message: string) => {
             let envelope: Envelope;
             try{
@@ -108,6 +107,10 @@ class EventBus{
             if(envelope.origin === origin) return;
             this.#dispatch(envelope.event, envelope.payload);
         });
+    }
+
+    get #channel(): string{
+        return `${readableConfig().name}:events`;
     }
 
     #connect(): Redis{

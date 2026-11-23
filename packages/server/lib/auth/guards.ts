@@ -6,13 +6,12 @@ import { principalId } from './params';
 import { parseId } from '../http/params';
 import { FastifyRequest } from 'fastify';
 
-const SCHEME = 'Bearer ';
-
 export const bearerSession = async (req: FastifyRequest): Promise<TokenPayload | null> => {
+    const scheme = 'Bearer ';
     const header = req.headers.authorization;
-    if(!header?.startsWith(SCHEME)) return null;
+    if(!header?.startsWith(scheme)) return null;
 
-    return verifiedSession(header.slice(SCHEME.length).trim());
+    return verifiedSession(header.slice(scheme.length).trim());
 };
 
 export const bearerPrincipal = async (req: FastifyRequest): Promise<Principal | null> => {

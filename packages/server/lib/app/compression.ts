@@ -2,11 +2,6 @@ import { FastifyInstance, FastifyReply } from 'fastify';
 import { promisify } from 'node:util';
 import { brotliCompress, constants, gzip } from 'node:zlib';
 
-const COMPRESSIBLE = /^(application\/(json|xml|javascript)|text\/|image\/svg\+xml)/;
-
-const brotli = promisify(brotliCompress);
-const gzipped = promisify(gzip);
-
 type Encoding = 'br' | 'gzip';
 
 const encodingFor = (accepted: string | undefined): Encoding | null => {
@@ -16,8 +11,11 @@ const encodingFor = (accepted: string | undefined): Encoding | null => {
     return offered.includes('gzip') ? 'gzip' : null;
 };
 
-const isCompressible = (reply: FastifyReply): boolean =>
-    !reply.hasHeader('content-encoding') && COMPRESSIBLE.test(String(reply.getHeader('content-type') ?? ''));
+const isCompressible = (reply: FastifyReply): boolean => {
+    const compressibleType = /^(application\/(json|xml|javascript)|text\/|image\/svg\+xml)/;
+
+    return !reply.hasHeader('content-encoding') && compressibleType.test(String(reply.getHeader('content-type') ?? ''));
+};
 
 const varyOnEncoding = (reply: FastifyReply) => {
     const vary = reply.getHeader('vary');
@@ -25,6 +23,9 @@ const varyOnEncoding = (reply: FastifyReply) => {
 };
 
 export const registerCompression = (app: FastifyInstance) => {
+    const brotli = promisify(brotliCompress);
+    const gzipped = promisify(gzip);
+
     app.addHook('onSend', async (request, reply, payload) => {
         if(typeof payload !== 'string' && !Buffer.isBuffer(payload)) return payload;
         if(!isCompressible(reply)) return payload;

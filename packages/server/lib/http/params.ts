@@ -50,13 +50,12 @@ export const getParamResolvers = (ctor: object, handlerName: string | symbol): P
     return resolvers;
 };
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-
 export const parseId = (raw: unknown): string => {
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
     if(typeof raw !== 'string') throw RequestError.InvalidId();
 
     const value = raw.toLowerCase();
-    if(!UUID.test(value)) throw RequestError.InvalidId();
+    if(!uuid.test(value)) throw RequestError.InvalidId();
     return value;
 };
 

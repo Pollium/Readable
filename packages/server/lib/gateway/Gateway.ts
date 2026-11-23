@@ -44,15 +44,6 @@ const on = (event: Binding['event'], type?: string): MethodDecorator => {
     };
 };
 
-const parseFrame = (raw: string): Frame | undefined => {
-    try{
-        const frame = JSON.parse(raw) as Frame;
-        return typeof frame?.type === 'string' ? frame : undefined;
-    }catch{
-        return undefined;
-    }
-};
-
 export default abstract class BaseGateway{
     protected readonly connections = new ConnectionsRegistry();
 
@@ -118,7 +109,7 @@ export default abstract class BaseGateway{
     }
 
     async #dispatch(socket: WebSocket, req: FastifyRequest, raw: string){
-        const frame = parseFrame(raw);
+        const frame = this.#parseFrame(raw);
         if(!frame){
             this.#fail(socket, GatewayError.MalformedFrame());
             return;
@@ -141,6 +132,15 @@ export default abstract class BaseGateway{
         }catch(error){
             if(abortScope.signal()?.aborted === true) return;
             this.#fail(socket, error, frame);
+        }
+    }
+
+    #parseFrame(raw: string): Frame | undefined{
+        try{
+            const frame = JSON.parse(raw) as Frame;
+            return typeof frame?.type === 'string' ? frame : undefined;
+        }catch{
+            return undefined;
         }
     }
 
