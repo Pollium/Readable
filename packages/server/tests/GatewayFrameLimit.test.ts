@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import BaseGateway, { MAX_FRAME_BYTES, websocketOptions, Channel } from '../lib/gateway/Gateway';
+import BaseGateway, { websocketOptions, Channel } from '../lib/gateway/Gateway';
 import websocket from '@fastify/websocket';
 import Fastify from 'fastify';
 import { describe, expect, it } from 'vitest';
@@ -21,7 +21,7 @@ describe('a live socket', () => {
             const socket = await app.injectWS(CHANNEL);
             const closed = new Promise<number>((resolve) => socket.on('close', (code) => resolve(code)));
 
-            socket.send('x'.repeat(MAX_FRAME_BYTES + 1));
+            socket.send('x'.repeat(1024 * 1024 + 1));
 
             await expect(closed).resolves.toBe(MESSAGE_TOO_BIG);
         }finally{

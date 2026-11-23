@@ -46,7 +46,7 @@ statement, and the classes in the last column turned from default into named exp
 | `@readable/auth/verifiedSession` | `@readable/auth/sessions` |  |
 | `@readable/config` | `@readable/app/config` |  |
 | `@readable/contracts/events` | `@readable/events/EventBus` |  |
-| `@readable/contracts/gateway` | `@readable/gateway/Gateway` |  |
+| `@readable/contracts/gateway` | `@readable/gateway/ConnectionRegistry` |  |
 | `@readable/contracts/logging` | `@readable/app/logger` |  |
 | `@readable/contracts/middleware` | `@readable/http/middleware` |  |
 | `@readable/contracts/params` | `@readable/http/params` |  |
@@ -134,3 +134,5 @@ its web code keeps its imports.
 - `ParamGuardRoute` waits for the session check, so it works without `AuthenticatedController` too.
 - `AuthErrors` holds only `Unauthorized` and `InvalidToken`; identity causes stay in the app.
 - `ProgressScope` is not here; Learn keeps it in its own code.
+- `REAUTHORIZE_MS`, `SESSION_EXPIRED`, `ACCESS_REVOKED` and `MAX_FRAME_BYTES` are no longer exported;
+  a test that waits for a reauthorization advances `30_000` ms and expects close codes `4401` and `4403`.

@@ -1,6 +1,6 @@
 import { JWTService, sessionCutoffs } from '../lib/auth/sessions';
 import 'reflect-metadata';
-import BaseGateway, { ACCESS_REVOKED, REAUTHORIZE_MS, SESSION_EXPIRED, Channel, OnMessage, Socket } from '../lib/gateway/Gateway';
+import BaseGateway, { Channel, OnMessage, Socket } from '../lib/gateway/Gateway';
 import { SocketAuthenticatedRoute } from '../lib/auth/guards';
 import { configure } from '../lib/app/config';
 import { Middleware } from '../lib/http/middleware';
@@ -84,7 +84,7 @@ describe('a live socket follows current authorization', () => {
     it('closes once the token it opened with expires', async () => {
         const client = await connect(jwt.signUntil('user-1', Math.floor(Date.now() / 1000) + 1));
 
-        expect(await client.closed).toBe(SESSION_EXPIRED);
+        expect(await client.closed).toBe(4401);
     });
 
     it('closes once a credential change cuts the session', async () => {
@@ -93,9 +93,9 @@ describe('a live socket follows current authorization', () => {
         const client = await connect(token);
 
         vi.spyOn(sessionCutoffs, 'cutoffOf').mockResolvedValue(jwt.verify(token).iat + 1);
-        vi.advanceTimersByTime(REAUTHORIZE_MS);
+        vi.advanceTimersByTime(30_000);
 
-        expect(await client.closed).toBe(ACCESS_REVOKED);
+        expect(await client.closed).toBe(4403);
     });
 
     it('closes once the socket may no longer be in a room it joined', async () => {
@@ -104,9 +104,9 @@ describe('a live socket follows current authorization', () => {
         await joined(client);
 
         roomOpen = false;
-        vi.advanceTimersByTime(REAUTHORIZE_MS);
+        vi.advanceTimersByTime(30_000);
 
-        expect(await client.closed).toBe(ACCESS_REVOKED);
+        expect(await client.closed).toBe(4403);
     });
 
     it('stays open while every check still holds', async () => {
@@ -114,7 +114,7 @@ describe('a live socket follows current authorization', () => {
         const client = await connect(jwt.sign('user-1'));
         await joined(client);
 
-        vi.advanceTimersByTime(REAUTHORIZE_MS);
+        vi.advanceTimersByTime(30_000);
         client.socket.send(JSON.stringify({ type: 'probe.join' }));
         await expect.poll(() => client.replies.length).toBe(2);
 
