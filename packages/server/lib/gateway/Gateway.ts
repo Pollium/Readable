@@ -22,6 +22,12 @@ const channels = new WeakMap<object, string>();
 const bindings = new ClassMetadata<Binding>();
 const invocations = new WeakMap<FastifyRequest, { socket: WebSocket; frame: Frame | undefined }>();
 
+export const OnConnect = () => on('connect');
+export const OnDisconnect = () => on('disconnect');
+export const OnMessage = (type: string) => on('message', type);
+export const Payload = (): ParameterDecorator => createParamDecorator((req) => invocations.get(req)?.frame);
+export const Socket = (): ParameterDecorator => createParamDecorator((req) => invocations.get(req)?.socket);
+
 export const websocketOptions: WebsocketPluginOptions = {
     options: { maxPayload: 1024 * 1024 }
 };
@@ -37,16 +43,6 @@ const on = (event: Binding['event'], type?: string): MethodDecorator => {
         bindings.append(target.constructor, { event, type, handlerName });
     };
 };
-
-export const OnConnect = () => on('connect');
-export const OnDisconnect = () => on('disconnect');
-export const OnMessage = (type: string) => on('message', type);
-
-export const Payload = (): ParameterDecorator =>
-    createParamDecorator((req) => invocations.get(req)?.frame);
-
-export const Socket = (): ParameterDecorator =>
-    createParamDecorator((req) => invocations.get(req)?.socket);
 
 const parseFrame = (raw: string): Frame | undefined => {
     try{
