@@ -15,6 +15,7 @@
   ],
   "exports": {
     "./tsconfig.json": "./tsconfig.app.json",
+    "./states/QueryState": "./lib/states/QueryState.tsx",
     "./*": "./lib/*.ts"
   },
   "publishConfig": {
