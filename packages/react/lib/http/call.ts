@@ -94,8 +94,8 @@ const send = async (url: string, init: RequestInit): Promise<Response> => {
     }
 };
 
-export const call = async <I, O>(endpoint: Endpoint<I, O>, ...[args]: ArgsOf<I>): Promise<O> => {
-    const { path, query, body, signal, keepalive } = (args ?? {}) as CallArgs<unknown>;
+export const request = async (endpoint: Pick<Endpoint, 'method' | 'path'>, args: CallArgs<unknown> = {}): Promise<unknown> => {
+    const { path, query, body, signal, keepalive } = args;
     const response = await send(urlOf(endpoint, { path, query }), {
         method: endpoint.method,
         headers: headersOf(body),
@@ -104,9 +104,12 @@ export const call = async <I, O>(endpoint: Endpoint<I, O>, ...[args]: ArgsOf<I>)
         keepalive
     });
     const payload = response.status === 204 ? undefined : await response.json().catch(() => undefined);
-    if(response.ok) return unwrap(payload) as O;
+    if(response.ok) return unwrap(payload);
 
     const code = (payload as ErrorBody | undefined)?.error ?? response.statusText;
     if(response.status === 401 && ENDS_SESSION.includes(baseCodeOf(code))) session.end();
     throw new ApiError(response.status, code, payload);
 };
+
+export const call = <I, O>(endpoint: Endpoint<I, O>, ...[args]: ArgsOf<I>): Promise<O> =>
+    request(endpoint, args as CallArgs<unknown>) as Promise<O>;

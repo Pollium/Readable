@@ -1,5 +1,5 @@
 import { toError } from '../http/ApiError';
-import { ArgsOf, call, CallArgs, pathOf, PathValues } from '../http/call';
+import { ArgsOf, CallArgs, pathOf, PathValues, request } from '../http/call';
 import { cache } from './cache';
 import { Endpoint } from '@pollium/readable-contracts/routing';
 import { useState } from 'react';
@@ -49,12 +49,12 @@ export const useMutation = <I, O>(
     const [error, setError] = useState<Error | undefined>(undefined);
 
     const run = async (...[args]: ArgsOf<I>): Promise<O> => {
-        const merged = { ...args, path: { ...path, ...args?.path } } as CallArgs<I>;
+        const merged: CallArgs<unknown> = { ...args, path: { ...path, ...args?.path } };
         setLoading(true);
         setError(undefined);
 
         try{
-            const data = await call(endpoint, ...[merged] as ArgsOf<I>);
+            const data = await request(endpoint, merged) as O;
             void refreshAfter(endpoint.method, pathOf(endpoint.path, merged.path), invalidates);
             onSuccess?.(data);
             return data;

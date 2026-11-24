@@ -1,4 +1,4 @@
-import { call, isComplete, pathOf, searchOf, Target } from '../http/call';
+import { isComplete, pathOf, request, searchOf, Target } from '../http/call';
 import { cache } from './cache';
 import { Endpoint } from '@pollium/readable-contracts/routing';
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
@@ -39,7 +39,7 @@ export const useQuery = <O, T = O>(
     const key = ready ? keyOf(endpoint, target || {}) : null;
 
     if(key !== null){
-        cache.ensure(key, pathOf(endpoint.path, (target || {}).path), () => call(endpoint, target || {}));
+        cache.ensure(key, pathOf(endpoint.path, (target || {}).path), () => request(endpoint, target || {}));
     }
 
     const subscribe = useCallback(
