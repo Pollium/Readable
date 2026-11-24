@@ -45,13 +45,6 @@ export const AuthError = defineErrors(AuthErrors);
 export const GatewayError = defineErrors(GatewayErrors);
 export const RateLimitError = defineErrors(RateLimitErrors);
 
-export const RouteError = defineErrors({
-    domain: 'Route',
-    causes: {
-        PrefixMismatch: 500
-    }
-});
-
 export const EventError = defineErrors({
     domain: 'Events',
     causes: {

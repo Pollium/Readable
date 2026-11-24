@@ -3,7 +3,6 @@ import { HttpMethod, Endpoint } from '@pollium/readable-contracts/routing';
 import { Paginated, RawResponse, RedirectResponse } from './responses';
 import { getParamResolvers } from './params';
 import { getMiddleware, getRateLimit } from './middleware';
-import { RouteError } from '../app/errors';
 import { FastifyReply, FastifyRequest, RouteGenericInterface, FastifyInstance } from 'fastify';
 
 export interface RouteDefinition{
@@ -74,36 +73,32 @@ export const getStatus = (
 
 export default abstract class BaseController{
     async register(app: FastifyInstance, prefix: string){
-        const mount = async (scope: FastifyInstance) => {
-            for(const route of routesByController.get(this.constructor)){
-                const handler = this.#wrap(route.handlerName);
-                const middlewares = getMiddleware(this.constructor, route.handlerName);
-                const url = route.absolute ? this.#relativeTo(route.path, prefix) : route.path;
-
-                scope.route({
-                    method: route.method,
-                    url,
-                    bodyLimit: route.bodyLimit,
-                    config: { rateLimit: getRateLimit(this.constructor, route.handlerName) },
-                    preHandler: middlewares.map((mw) => async (req, reply) => await mw(req, reply)),
-                    handler
-                });
-            }
-        };
-
-        if(prefix === ''){
-            await mount(app);
-            return;
+        const routes = routesByController.get(this.constructor);
+        for(const route of routes.filter((route) => route.absolute)){
+            this.#mount(app, route);
         }
 
-        await app.register(mount, { prefix });
+        const written = routes.filter((route) => !route.absolute);
+        if(written.length === 0) return;
+
+        await app.register(async (scope) => {
+            for(const route of written){
+                this.#mount(scope, route);
+            }
+        }, { prefix });
     }
 
-    #relativeTo(path: string, prefix: string){
-        if(path !== prefix && !path.startsWith(`${prefix}/`)){
-            throw RouteError.PrefixMismatch(path);
-        }
-        return path.slice(prefix.length) || '/';
+    #mount(scope: FastifyInstance, route: RouteDefinition){
+        const middlewares = getMiddleware(this.constructor, route.handlerName);
+
+        scope.route({
+            method: route.method,
+            url: route.path,
+            bodyLimit: route.bodyLimit,
+            config: { rateLimit: getRateLimit(this.constructor, route.handlerName) },
+            preHandler: middlewares.map((mw) => async (req, reply) => await mw(req, reply)),
+            handler: this.#wrap(route.handlerName)
+        });
     }
 
     #wrap(handlerName: string | symbol): Handler{
