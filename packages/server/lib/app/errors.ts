@@ -1,5 +1,6 @@
 import {
-    ErrorTable,
+    RuntimeError,
+    defineErrors,
     RequestErrors,
     ServerErrors,
     AuthErrors,
@@ -7,17 +8,7 @@ import {
     RateLimitErrors
 } from '@pollium/readable-contracts/errors';
 
-type ErrorFactory = (detail?: string) => RuntimeError;
-
-export class RuntimeError extends Error{
-    public statusCode: number;
-
-    constructor(message: string, statusCode: number){
-        super(message);
-        this.statusCode = statusCode;
-        Error.captureStackTrace(this, this.constructor);
-    }
-}
+export { RuntimeError, defineErrors };
 
 export class ValidationError extends RuntimeError{
     constructor(
@@ -27,17 +18,6 @@ export class ValidationError extends RuntimeError{
         super(template.message, template.statusCode);
     }
 }
-
-export const defineErrors = <T extends ErrorTable>({ domain, causes }: T): Record<keyof T['causes'], ErrorFactory> => {
-    const factories = {} as Record<keyof T['causes'], ErrorFactory>;
-    for(const [cause, status] of Object.entries(causes)){
-        factories[cause as keyof T['causes']] = (detail?: string) => {
-            const code = detail === undefined ? `${domain}::${cause}` : `${domain}::${cause}:${detail}`;
-            return new RuntimeError(code, status);
-        };
-    }
-    return factories;
-};
 
 export const RequestError = defineErrors(RequestErrors);
 export const ServerError = defineErrors(ServerErrors);

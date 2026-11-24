@@ -10,6 +10,27 @@ export interface ErrorTable{
 export type ErrorCode<T extends ErrorTable> =
     `${T['domain']}::${Extract<keyof T['causes'], string>}`;
 
+export type ErrorFactories<T extends ErrorTable> = {
+    readonly [Cause in keyof T['causes']]: (detail?: string) => RuntimeError;
+};
+
+export class RuntimeError extends Error{
+    constructor(message: string, public statusCode: number){
+        super(message);
+    }
+}
+
+export const defineErrors = <const T extends ErrorTable>(table: T): T & ErrorFactories<T> => {
+    const factories: Record<string, (detail?: string) => RuntimeError> = {};
+    for(const [cause, status] of Object.entries(table.causes)){
+        factories[cause] = (detail?: string) => {
+            const code = detail === undefined ? `${table.domain}::${cause}` : `${table.domain}::${cause}:${detail}`;
+            return new RuntimeError(code, status);
+        };
+    }
+    return { ...table, ...factories } as T & ErrorFactories<T>;
+};
+
 export const GatewayErrors = {
     domain: 'Gateway',
     causes: {
