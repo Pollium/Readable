@@ -1,4 +1,5 @@
 import { settings } from '../app/config';
+import { FieldCopy } from '../forms/messages';
 import { ApiError } from '../http/ApiError';
 import {
     AuthErrors,
@@ -28,6 +29,7 @@ export interface AppCopy{
     offline: Copy;
     unknown: Copy;
     codes: Readonly<Record<ReadableErrorCode, Copy>> & Codes;
+    fields?: Partial<FieldCopy>;
 }
 
 export interface ErrorCopy{
