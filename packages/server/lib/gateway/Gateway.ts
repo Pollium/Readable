@@ -4,6 +4,7 @@ import { createParamDecorator, getParamResolvers } from '../http/params';
 import { RuntimeError, GatewayError } from '../app/errors';
 import { getClassMiddleware } from '../http/middleware';
 import { abortScope } from '../app/abort';
+import { SocketClose } from '@pollium/readable-contracts/gateway';
 import { WebsocketPluginOptions, WebSocket } from '@fastify/websocket';
 import { FastifyRequest, FastifyInstance, FastifyReply } from 'fastify';
 
@@ -72,7 +73,7 @@ export default abstract class BaseGateway{
         this.connections.add(socket);
         const expiry = req.sessionExpiresAt === undefined
             ? undefined
-            : setTimeout(() => socket.close(4401, 'session expired'), req.sessionExpiresAt * 1000 - Date.now());
+            : setTimeout(() => socket.close(SocketClose.SessionExpired, 'session expired'), req.sessionExpiresAt * 1000 - Date.now());
         const reauthorizing = setInterval(() => {
             void this.#reauthorize(socket, req);
         }, 30_000);
@@ -97,7 +98,7 @@ export default abstract class BaseGateway{
             await this.#authorizations.get(req)?.();
             await this.connections.reauthorize(socket);
         }catch{
-            socket.close(4403, 'access revoked');
+            socket.close(SocketClose.AccessRevoked, 'access revoked');
         }
     }
 
