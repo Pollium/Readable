@@ -1,13 +1,16 @@
+import { AppCopy } from '../errors/copy';
 import { defineErrors } from '@pollium/readable-contracts/errors';
 
 export interface WebOptions{
     name: string;
     apiUrl?: string;
+    copy?: AppCopy;
 }
 
 export interface WebSettings{
     name: string;
     apiUrl: string;
+    copy: AppCopy | null;
 }
 
 const ConfigErrors = defineErrors({
@@ -19,10 +22,11 @@ const ConfigErrors = defineErrors({
 
 let current: WebSettings | null = null;
 
-export const configure = ({ name, apiUrl }: WebOptions) => {
+export const configure = ({ name, apiUrl, copy }: WebOptions) => {
     current = {
         name,
-        apiUrl: (apiUrl?.trim() || `${window.location.origin}/api`).replace(/\/+$/, '')
+        apiUrl: (apiUrl?.trim() || `${window.location.origin}/api`).replace(/\/+$/, ''),
+        copy: copy ?? null
     };
 };
 

@@ -77,7 +77,7 @@ describe('mount', () => {
 
         expect(await screen.findByText('sign in')).toBeTruthy();
         expect(screen.getByTestId('wrap')).toBeTruthy();
-        expect(settings()).toEqual({ name: 'board', apiUrl: 'http://board.test' });
+        expect(settings()).toMatchObject({ name: 'board', apiUrl: 'http://board.test' });
         root.remove();
     });
 });
