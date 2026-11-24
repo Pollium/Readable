@@ -1,6 +1,7 @@
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
-import BaseGateway from '../gateway/Gateway';
+import websocket from '@fastify/websocket';
+import BaseGateway, { websocketOptions } from '../gateway/Gateway';
 import BaseQueue from '../queues/BaseQueue';
 import { RuntimeError, ValidationError, RateLimitError, ServerError } from './errors';
 import { ApiError } from '@pollium/readable-contracts/http';
@@ -92,6 +93,7 @@ export default class Application{
         this.#registerRequestLogging();
         await this.#mountControllers(discovered.controllers);
         this.#app.get('/health', async () => ({ status: 'ok' }));
+        await this.#openWebsocket(discovered.gateways);
         this.#mountGateways(discovered.gateways);
         discovered.events.forEach(registerEventGroup);
         this.#options.afterMount?.(discovered);
@@ -151,6 +153,12 @@ export default class Application{
         for(const { prefix, Controller } of controllers){
             await new Controller().register(this.#app, prefix);
         }
+    }
+
+    async #openWebsocket(gateways: Array<new () => BaseGateway>){
+        if(gateways.length === 0 || this.#app.hasDecorator('websocketServer')) return;
+
+        await this.#app.register(websocket, websocketOptions);
     }
 
     #mountGateways(gateways: Array<new () => BaseGateway>){
