@@ -87,14 +87,18 @@ export class ModuleDiscovery{
     }
 }
 
-export const discoverFrom = async (
-    metaUrl: string,
-    load: ModuleLoader,
-    folders: string[] = ['modules']
+export const discoverIn = async (
+    srcDir: string,
+    folders: string[] = ['modules'],
+    load: ModuleLoader = (url) => import(url)
 ): Promise<Discovered> => {
-    const srcDir = join(dirname(fileURLToPath(metaUrl)), '..');
-
     return ModuleDiscovery.merge(await Promise.all(
         folders.map((folder) => new ModuleDiscovery(join(srcDir, folder), load).discover())
     ));
 };
+
+export const discoverFrom = (
+    metaUrl: string,
+    load: ModuleLoader,
+    folders: string[] = ['modules']
+): Promise<Discovered> => discoverIn(join(dirname(fileURLToPath(metaUrl)), '..'), folders, load);
