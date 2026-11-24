@@ -9,14 +9,17 @@
     "directory": "packages/server"
   },
   "files": [
-    "dist"
+    "dist",
+    "tsconfig.app.json"
   ],
   "exports": {
+    "./tsconfig.json": "./tsconfig.app.json",
     "./*": "./lib/*.ts"
   },
   "publishConfig": {
     "access": "public",
     "exports": {
+      "./tsconfig.json": "./tsconfig.app.json",
       "./*": {
         "types": "./dist/*.d.ts",
         "default": "./dist/*.js"

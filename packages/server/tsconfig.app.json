@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2024"],
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "useDefineForClassFields": false,
+    "noEmit": true,
+    "paths": {
+      "@/*": ["${configDir}/src/*"],
+      "@tests/*": ["${configDir}/tests/*"]
+    }
+  },
+  "include": ["${configDir}/src", "${configDir}/tests", "${configDir}/scripts", "${configDir}/vite.config.ts"]
+}
