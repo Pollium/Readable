@@ -16,4 +16,8 @@ describe('the published package', () => {
         expect(manifest.publishConfig.exports['./tsconfig.json']).toBe('./tsconfig.app.json');
         expect(base.compilerOptions.paths['@/*']).toEqual(['${configDir}/src/*']);
     });
+
+    it('ships the agent guide beside the code it describes', () => {
+        expect(manifest.files).toContain('AGENTS.md');
+    });
 });

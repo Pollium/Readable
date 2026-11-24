@@ -10,7 +10,8 @@
   },
   "files": [
     "dist",
-    "tsconfig.app.json"
+    "tsconfig.app.json",
+    "AGENTS.md"
   ],
   "exports": {
     "./tsconfig.json": "./tsconfig.app.json",

@@ -1,6 +1,7 @@
 # Readable
 
-Readable is the backend framework behind Pollium's APIs.
+Readable is the backend framework behind Pollium's APIs. Its guide for agents ships with the package, at
+`node_modules/@pollium/readable/AGENTS.md`.
 
 **Why?** AI writes more code today than anyone can stop to read. If every line still needs a human to follow
 it, that human is the bottleneck. Readable makes the code an API needs small and decided in advance,
