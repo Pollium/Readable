@@ -10,10 +10,10 @@ everything is in a codebase you have never opened.
 ## Where everything is
 
 ```
+tsconfig.json        { "extends": "@pollium/readable/tsconfig.json" }
+vite.config.ts       export default readableConfig();
 src/
   server.ts
-  core/Application.ts
-  shared/config.ts
   modules/
     notes/
       controllers/   routes
@@ -78,7 +78,10 @@ Readable:
 ```ts
 // the contracts package, shared with the web app
 import { get, post } from '@pollium/readable-contracts/routing';
+import { defineErrors } from '@pollium/readable-contracts/errors';
 import { Note } from './domain';
+
+export const NoteErrors = defineErrors({ domain: 'Note', causes: { NotFound: 404 } });
 
 export interface CreateNoteInput{
     /** @minLength 1 */
@@ -120,11 +123,8 @@ export default class NoteController extends AuthenticatedController{
 ```ts
 // src/modules/notes/services/Note.ts
 import Note from '../models/Note';
-import { defineErrors } from '@pollium/readable/app/errors';
 import { findOrThrow } from '@pollium/readable/database/queries';
-import { CreateNoteInput } from '@app/contracts/notes';
-
-const NoteError = defineErrors({ domain: 'Note', causes: { NotFound: 404 } } as const);
+import { CreateNoteInput, NoteErrors } from '@app/contracts/notes';
 
 export default class NoteService{
     create(ownerId: string, input: CreateNoteInput): Promise<Note>{
@@ -132,15 +132,15 @@ export default class NoteService{
     }
 
     get(ownerId: string, id: string): Promise<Note>{
-        return findOrThrow(Note, { id, ownerId }, NoteError.NotFound);
+        return findOrThrow(Note, { id, ownerId }, NoteErrors.NotFound);
     }
 }
 ```
 
 The controller only says which route calls which piece of logic. Readable checks the bearer token,
 validates the body against the `CreateNoteInput` type, rejects an `id` that is not a UUID, wraps the
-answer in `{ data }` and turns `Note::NotFound` into a 404. `noteRoutes` is the same contract the web
-app calls, so both sides read one path and one type.
+answer in `{ data }` and turns `Note::NotFound` into a 404. `noteRoutes` and `NoteErrors` are the same
+contracts the web app reads, so both sides share one path, one type and one error code.
 
 ## Starting the API
 
@@ -176,31 +176,15 @@ for(const signal of ['SIGTERM', 'SIGINT']){
 Readable:
 
 ```ts
-// src/core/Application.ts
-import Application from '@pollium/readable/app/Application';
-import { discoverFrom } from '@pollium/readable/app/discovery';
-import { createDataSource } from '@pollium/readable/database/data-source';
-import { config } from '@/shared/config';
-
-const createApp = () => new Application({
-    port: config.port,
-    corsOrigins: config.corsOrigins,
-    log: config.log,
-    discover: () => discoverFrom(import.meta.url, (url) => import(url)),
-    createDataSource: (entities) => createDataSource(config.database, entities)
-});
-
-export default createApp;
-```
-
-```ts
 // src/server.ts
 import 'reflect-metadata';
-import createApp from '@/core/Application';
+import { readable } from '@pollium/readable/app/readable';
 import { listen } from '@pollium/readable/app/Application';
 
-listen(createApp());
+listen(readable());
 ```
 
-A new module never touches these files. Compression, request logging, `/health`, error answers,
-graceful shutdown and the store behind `@RateLimit` come with `Application`.
+`readable()` reads `PORT`, `DATABASE_URL`, `REDIS_HOST`, `REDIS_PORT`, `JWT_SECRET`, `CORS_ORIGIN` and
+`STORAGE_*` from the environment and mounts everything under `src/modules`. A new module never touches
+this file. Compression, request logging, `/health`, error answers, the websocket for gateways, graceful
+shutdown and the store behind `@RateLimit` come with it.
