@@ -1,0 +1,167 @@
+import { session } from '../lib/session/session';
+import { useQuery } from '../lib/query/useQuery';
+import { fakeApi } from './support/fake-api';
+import { Note, noteRoutes } from './support/notes';
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+
+const note = (id: string, title = id): Note => ({ id, title });
+
+describe('useQuery', () => {
+    it('loads the answer of its endpoint', async () => {
+        const api = fakeApi();
+        api.on('GET', '/notebooks/nb1/notes', { body: { data: [note('n1')] } });
+
+        const { result } = renderHook(() => useQuery(noteRoutes.list, { path: { notebookId: 'nb1' } }));
+
+        expect(result.current).toMatchObject({ loading: true, data: null });
+        await waitFor(() => expect(result.current).toMatchObject({ loading: false, data: [note('n1')] }));
+    });
+
+    it('waits while a path param is missing, then loads', async () => {
+        const api = fakeApi();
+        api.on('GET', '/notebooks/nb1/notes/n1', { body: { data: note('n1') } });
+
+        const { result, rerender } = renderHook(
+            ({ noteId }: { noteId?: string }) => useQuery(noteRoutes.get, { path: { notebookId: 'nb1', noteId } }),
+            { initialProps: {} }
+        );
+
+        expect(result.current).toMatchObject({ loading: false, data: null });
+        expect(api.sent).toHaveLength(0);
+
+        rerender({ noteId: 'n1' });
+        await waitFor(() => expect(result.current.data).toEqual(note('n1')));
+    });
+
+    it('waits for a target that is not there yet, or while it is disabled', () => {
+        const api = fakeApi();
+        const noteId: string | undefined = undefined;
+
+        renderHook(() => useQuery(noteRoutes.get, noteId && { path: { notebookId: 'nb1', noteId } }));
+        renderHook(() => useQuery(noteRoutes.me, {}, { enabled: false }));
+
+        expect(api.sent).toHaveLength(0);
+    });
+
+    it('asks the api once for every component reading the same query', async () => {
+        const api = fakeApi();
+        api.on('GET', '/me', { body: { data: { id: 'u1' } } });
+
+        const first = renderHook(() => useQuery(noteRoutes.me));
+        const second = renderHook(() => useQuery(noteRoutes.me));
+
+        await waitFor(() => expect(second.result.current.data).toEqual({ id: 'u1' }));
+        expect(first.result.current.data).toEqual({ id: 'u1' });
+        expect(api.calls('GET', '/me')).toHaveLength(1);
+    });
+
+    it('answers from memory for 30 seconds, then asks again', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        const api = fakeApi();
+        api.on('GET', '/me', { body: { data: { id: 'u1' } } });
+
+        const first = renderHook(() => useQuery(noteRoutes.me));
+        await waitFor(() => expect(first.result.current.data).toEqual({ id: 'u1' }));
+        first.unmount();
+
+        const again = renderHook(() => useQuery(noteRoutes.me));
+        expect(again.result.current).toMatchObject({ loading: false, data: { id: 'u1' } });
+        again.unmount();
+
+        vi.advanceTimersByTime(30_001);
+        const later = renderHook(() => useQuery(noteRoutes.me));
+        expect(later.result.current).toMatchObject({ loading: true, data: { id: 'u1' } });
+        await waitFor(() => expect(later.result.current.loading).toBe(false));
+        expect(api.calls('GET', '/me')).toHaveLength(2);
+        vi.useRealTimers();
+    });
+
+    it('keeps its data and tells the error when a reload fails', async () => {
+        const api = fakeApi();
+        api.on('GET', '/me', { body: { data: { id: 'u1' } } });
+        const { result } = renderHook(() => useQuery(noteRoutes.me));
+        await waitFor(() => expect(result.current.data).toEqual({ id: 'u1' }));
+
+        api.on('GET', '/me', { status: 503, body: { error: 'Server::Internal' } });
+        act(() => result.current.reload());
+
+        await waitFor(() => expect(result.current.error?.message).toBe('Server::Internal'));
+        expect(result.current).toMatchObject({ loading: false, data: { id: 'u1' } });
+    });
+
+    it('takes the answer of the last reload, whatever answers first', async () => {
+        const api = fakeApi();
+        const answers = [
+            Promise.withResolvers<void>(),
+            Promise.withResolvers<void>()
+        ];
+        let asked = 0;
+        api.on('GET', '/me', async () => {
+            const turn = asked++;
+            await answers[turn].promise;
+            return { body: { data: { id: `u${turn}` } } };
+        });
+        const { result } = renderHook(() => useQuery(noteRoutes.me));
+        await waitFor(() => expect(asked).toBe(1));
+
+        act(() => result.current.reload());
+        await waitFor(() => expect(asked).toBe(2));
+        answers[1].resolve();
+        await waitFor(() => expect(result.current.data).toEqual({ id: 'u1' }));
+        answers[0].resolve();
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        expect(result.current.data).toEqual({ id: 'u1' });
+    });
+
+    it('selects what the component reads from the answer', async () => {
+        const api = fakeApi();
+        api.on('GET', '/notebooks/nb1/notes', { body: { data: [note('n1'), note('n2')] } });
+
+        const { result } = renderHook(() => useQuery(noteRoutes.list, { path: { notebookId: 'nb1' } }, { select: (notes) => notes.length }));
+
+        await waitFor(() => expect(result.current.data).toBe(2));
+    });
+
+    it('waits for the queries it depends on, and fails with them', async () => {
+        const api = fakeApi();
+        api.on('GET', '/me', { status: 500, body: { error: 'Server::Internal' } });
+
+        const { result } = renderHook(() => {
+            const me = useQuery(noteRoutes.me);
+            const notebooks = useQuery(noteRoutes.notebooks, {}, { dependsOn: me });
+            return notebooks;
+        });
+
+        expect(result.current.loading).toBe(true);
+        await waitFor(() => expect(result.current.error?.message).toBe('Server::Internal'));
+        expect(api.calls('GET', '/notebooks')).toHaveLength(0);
+    });
+
+    it('takes data handed to it, for a frame from a gateway', async () => {
+        const api = fakeApi();
+        api.on('GET', '/notebooks/nb1/notes/n1', { body: { data: note('n1') } });
+        const { result } = renderHook(() => useQuery(noteRoutes.get, { path: { notebookId: 'nb1', noteId: 'n1' } }));
+        await waitFor(() => expect(result.current.data).toEqual(note('n1')));
+
+        act(() => result.current.set(note('n1', 'renamed')));
+
+        expect(result.current.data).toEqual(note('n1', 'renamed'));
+    });
+
+    it('forgets what it loaded when the session ends, and asks again without it', async () => {
+        const api = fakeApi();
+        api.on('GET', '/me', ({ headers }) => headers.Authorization
+            ? { body: { data: { id: 'u1' } } }
+            : { status: 401, body: { error: 'Auth::Unauthorized' } });
+        session.start('token-a');
+        const { result } = renderHook(() => useQuery(noteRoutes.me));
+        await waitFor(() => expect(result.current.data).toEqual({ id: 'u1' }));
+
+        act(() => session.end());
+
+        expect(result.current.data).toBeNull();
+        await waitFor(() => expect(result.current.error?.message).toBe('Auth::Unauthorized'));
+    });
+});
