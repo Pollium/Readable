@@ -30,6 +30,14 @@ describe('RedisSessionCutoffStore', () => {
         vi.useRealTimers();
     });
 
+    it('cuts at the second another service cut the session', async () => {
+        const at = Date.parse('2026-10-28T12:00:00Z') / 1000;
+
+        await store.cut('user-1', at);
+
+        expect(set).toHaveBeenCalledWith('session:cutoff:user-1', String(at), 'EX', 7 * 24 * 60 * 60);
+    });
+
     it('reads no cut for an account that never cut its sessions', async () => {
         get.mockResolvedValue(null);
 

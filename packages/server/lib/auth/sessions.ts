@@ -22,7 +22,7 @@ declare module 'fastify'{
 
 export interface SessionCutoffStore{
     cutoffOf(userId: string): Promise<number | null>;
-    cut(userId: string): Promise<void>;
+    cut(userId: string, at?: number): Promise<void>;
 }
 
 export const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
@@ -52,8 +52,8 @@ export class RedisSessionCutoffStore implements SessionCutoffStore{
         return value === null ? null : Number(value);
     }
 
-    async cut(userId: string){
-        await redis.set(`${this.#prefix}${userId}`, String(Math.floor(Date.now() / 1000)), 'EX', SESSION_TTL_SECONDS);
+    async cut(userId: string, at = Math.floor(Date.now() / 1000)){
+        await redis.set(`${this.#prefix}${userId}`, String(at), 'EX', SESSION_TTL_SECONDS);
     }
 }
 
