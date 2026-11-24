@@ -46,6 +46,12 @@ export const Middleware = (...middleware: MiddlewareFn[]): ClassDecorator & Meth
     };
 };
 
+export const chain = (...guards: MiddlewareFn[]): MiddlewareFn => async (req, reply) => {
+    for(const guard of guards){
+        await guard(req, reply);
+    }
+};
+
 export const getMiddleware = (ctor: object, handlerName: string | symbol): MiddlewareFn[] => {
     const bindings = bindingsOf(ctor);
 
