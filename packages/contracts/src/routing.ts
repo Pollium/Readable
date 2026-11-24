@@ -11,3 +11,6 @@ export const post = <Input, Output = void>(path: string): Endpoint<Input, Output
 export const patch = <Input, Output = void>(path: string): Endpoint<Input, Output> => ({ method: 'PATCH', path });
 export const put = <Input, Output = void>(path: string): Endpoint<Input, Output> => ({ method: 'PUT', path });
 export const del = <Output = void>(path: string): Endpoint<never, Output> => ({ method: 'DELETE', path });
+
+export type InputOf<E> = E extends Endpoint<infer Input, unknown> ? Input : never;
+export type OutputOf<E> = E extends Endpoint<never, infer Output> ? Output : never;
