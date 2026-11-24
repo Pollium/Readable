@@ -1,3 +1,4 @@
+import { toError } from '../http/ApiError';
 import { session } from '../session/session';
 
 export interface Snapshot{
@@ -19,8 +20,6 @@ interface Entry{
 }
 
 const EMPTY: Snapshot = { data: undefined, error: undefined, fetching: false, landed: false };
-
-const toError = (cause: unknown): Error => cause instanceof Error ? cause : new Error(String(cause));
 
 class QueryCache{
     readonly #entries = new Map<string, Entry>();
