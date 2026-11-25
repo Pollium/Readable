@@ -37,11 +37,19 @@ describe('call', () => {
         expect(await call(noteRoutes.notebooks)).toEqual({ items: [{ id: 'nb1' }], meta });
     });
 
-    it('answers nothing for a 204', async () => {
-        const api = fakeApi();
-        api.on('DELETE', '/notebooks/nb1/notes/n1', { status: 204 });
+    it('answers nothing for a 204, and reads its body so the browser does not count it as aborted', async () => {
+        const answer = new Response(null, { status: 204 });
+        const read = vi.spyOn(answer, 'text');
+        vi.stubGlobal('fetch', async () => answer);
 
         expect(await call(noteRoutes.remove, { path: { notebookId: 'nb1', noteId: 'n1' } })).toBeUndefined();
+        expect(read).toHaveBeenCalledOnce();
+    });
+
+    it('throws the status of an error that is not JSON', async () => {
+        vi.stubGlobal('fetch', async () => new Response('<html>Bad Gateway</html>', { status: 502, statusText: 'Bad Gateway' }));
+
+        await expect(call(noteRoutes.me)).rejects.toMatchObject({ status: 502, message: 'Bad Gateway' });
     });
 
     it('throws the code, the status and the field errors the api answered', async () => {

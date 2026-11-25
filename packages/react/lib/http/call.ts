@@ -82,6 +82,17 @@ const unwrap = (payload: unknown): unknown => {
     } satisfies PageOf<unknown>;
 };
 
+const payloadOf = async (response: Response): Promise<unknown> => {
+    const text = await response.text().catch(() => '');
+    if(text === '') return undefined;
+
+    try{
+        return JSON.parse(text);
+    }catch{
+        return undefined;
+    }
+};
+
 const send = async (url: string, init: RequestInit): Promise<Response> => {
     try{
         return await fetch(url, init);
@@ -101,7 +112,7 @@ export const request = async (endpoint: Pick<Endpoint, 'method' | 'path'>, args:
         signal,
         keepalive
     });
-    const payload = response.status === 204 ? undefined : await response.json().catch(() => undefined);
+    const payload = await payloadOf(response);
     if(response.ok) return unwrap(payload);
 
     const code = (payload as ErrorBody | undefined)?.error ?? response.statusText;
