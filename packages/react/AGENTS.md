@@ -98,7 +98,9 @@ const detail = useQuery(issueRoutes.get, { path: { projectId, issueId } });
 - `base: env.iamServerUrl` sends a call, a query or a mutation to another api, with the same session; its
   answers are remembered apart from the main api's, and a mutation refreshes only its own api's branch.
 - `prefetch(endpoint, target)` from `query/useQuery` asks before the page mounts, from a route's loader or
-  a hovered link; the query that mounts later answers from it, or shares it while it is on its way.
+  a hovered link; the query that mounts later answers from it, or shares it while it is on its way. It
+  answers what it read, or `null` when it could not ask or the api refused, and never throws, so one
+  prefetch can follow from another: `const course = await prefetch(...)`, then its roadmap.
 - `call(endpoint, { path, query, body })` from `http/call` is the same request outside React.
 
 ## Mutations
@@ -116,7 +118,11 @@ await update.run({ body: { status } });
 - `invalidates: [projectRoutes.stats]` refreshes the queries of other endpoints as well.
   `invalidate(projectRoutes.stats)` does it outside a mutation, and `invalidate()` with nothing refreshes
   every query.
-- A query on screen asks again at once; one nobody is reading asks the next time it is read.
+- A query on screen asks again at once; one nobody is reading asks the next time it is read. An answer
+  still on its way when its query is refreshed is not taken as fresh when it lands.
+- `markStale(projectRoutes.stats)` refreshes nothing now: the queries it names keep their answer on screen
+  and ask again the next time a component mounts them. `markStale()` with nothing marks every query, for an
+  event that may have changed anything and should not set every screen asking at once.
 - `run` throws the error and keeps it in `error`; `reset()` clears it.
 
 ## States
