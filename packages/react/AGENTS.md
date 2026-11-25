@@ -43,6 +43,7 @@ mount({
 | `apiUrl` | the api's base url; blank or unset is `<origin>/api` |
 | `pages` | the page files, from `import.meta.glob`; Vite resolves them when it builds |
 | `layout` | the frame around every protected page, with an `<Outlet />` |
+| `notFound` | the page for a path no page answers; unknown paths go to `home` without it |
 | `signIn`, `home` | where a guest is sent (`/sign-in`), and where a signed-in user is (`/`) |
 | `copy` | the app's error copy, below |
 | `wrap` | providers around the router: `wrap: (app) => <I18nProvider i18n={i18n}>{app}</I18nProvider>` |
@@ -146,7 +147,8 @@ issueCopy.with(projectCopy)(detail.error); // the copy of both tables
 - A function is read when the error is described, so copy follows the language.
 - What a table does not name falls to the app's `copy`, given to `mount`, which needs every code readable
   answers (`Auth::*`, `RateLimit::*`, `Request::*`, `Server::*`), the copy for `offline` and `unknown`,
-  and may add codes several modules share. `describeError(error)` reads only the app's copy.
+  and may add codes several modules share. `unknown` may be `(code) => string`, to name the code it could
+  not describe. `describeError(error)` reads only the app's copy.
 - An error is an `ApiError` with `status`, `code` (no detail), `fields` (the field errors the api
   answered) and `isNetworkError`.
 
@@ -202,15 +204,18 @@ const form = useForm(roadmapRoutes.createStep, {
 - A field is checked when it is left, and on every change after that; all of them on submit.
 - The form submits to its endpoint and refreshes like a mutation. The field errors the api answered land
   on their fields; `fieldOf: { 'Step::TitleTaken': 'title' }` puts a code on a field; anything else is
-  `submitError`, described by `copy`.
+  `submitError`, described by `copy`. `onFail(error, values)` runs after a failed submit, for a form that
+  changes what it shows when its link no longer works.
 - The messages for a field are in English; `copy.fields` in `mount` replaces them.
 
 ## Session
 
 `session.start(token)` signs in, `session.end()` signs out, and `useSession()` renders again on each. The
 token is kept in `localStorage` and sent as a bearer token on every call and socket. The session ends by
-itself when the api answers `401 Auth::Unauthorized` or `Auth::InvalidToken`, when a gateway closes for it
-and when another tab signs out; every query forgets what it loaded and asks again without it.
+itself when the api answers `401 Auth::Unauthorized` or `Auth::InvalidToken` to the token it was sent,
+when a gateway closes for it and when another tab signs out. A call still on its way with an old token
+never ends a session started after it. Every query forgets what it loaded, and the ones still on screen
+once the guards have taken the protected pages away ask again without the token.
 
 ## Testing
 
