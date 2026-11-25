@@ -20,6 +20,16 @@ describe('call', () => {
         expect(api.sent[0].body).toEqual({ title: 'a' });
     });
 
+    it('sends the headers a call adds, beside the session token', async () => {
+        const api = fakeApi();
+        api.on('GET', '/me', { body: { data: { id: 'u1' } } });
+        session.start('token-a');
+
+        await call(noteRoutes.me, { headers: { 'X-Share-Token': 'share-1' } });
+
+        expect(api.sent[0].headers).toEqual({ Authorization: 'Bearer token-a', 'X-Share-Token': 'share-1' });
+    });
+
     it('writes the query in a stable order and leaves out empty values', async () => {
         const api = fakeApi();
         api.on('GET', '/notebooks/nb1/notes', { body: { data: [] } });
