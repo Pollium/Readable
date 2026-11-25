@@ -1,7 +1,8 @@
 # Readable
 
-Readable is the backend framework behind Pollium's APIs. Its guide for agents ships with the package, at
-`node_modules/@pollium/readable/AGENTS.md`.
+Readable is the framework behind Pollium's APIs and the webs that call them. Its guides for agents ship
+with the packages, at `node_modules/@pollium/readable/AGENTS.md` and
+`node_modules/@pollium/readable-react/AGENTS.md`.
 
 **Why?** AI writes more code today than anyone can stop to read. If every line still needs a human to follow
 it, that human is the bottleneck. Readable makes the code an API needs small and decided in advance,
@@ -189,3 +190,50 @@ listen(readable());
 `STORAGE_*` from the environment and mounts everything under `src/modules`. A new module never touches
 this file. Compression, request logging, `/health`, error answers, the websocket for gateways, graceful
 shutdown and the store behind `@RateLimit` come with it.
+
+## The web
+
+React, by hand:
+
+```ts
+// src/modules/issues/api/api.ts
+export const issuesApi = {
+    list: (projectId: string, query: IssueListQuery) =>
+        fetchJson<Issue[]>(`/projects/${projectId}/issues?${new URLSearchParams(query)}`),
+    update: (projectId: string, issueId: string, body: UpdateIssueInput) =>
+        fetchJson<Issue>(`/projects/${projectId}/issues/${issueId}`, { method: 'PATCH', body: JSON.stringify(body) })
+};
+
+// the page
+const [issues, setIssues] = useState<Issue[] | null>(null);
+const [error, setError] = useState<Error | null>(null);
+const load = useCallback(() => {
+    issuesApi.list(projectId, { period }).then(setIssues, setError);
+}, [projectId, period]);
+useEffect(load, [load]);
+
+const resolve = async (issueId: string) => {
+    await issuesApi.update(projectId, issueId, { status: 'resolved' });
+    load();
+};
+
+const message = error?.message === 'Issue::NotFound' ? 'This issue no longer exists' : 'Something went wrong';
+```
+
+Readable:
+
+```ts
+const issues = useQuery(issueRoutes.list, { path: { projectId }, query: { period } });
+const update = useMutation(issueRoutes.update, { path: { projectId } });
+
+const resolve = (issueId: string) => update.run({ path: { issueId }, body: { status: 'resolved' } });
+
+const issueCopy = copyFor(IssueErrors, { NotFound: 'This issue no longer exists' });
+```
+
+The path, the method and the types come from `issueRoutes`, the same contract the API mounts. Every
+component reading the list shares one request, the update refreshes the list on its own, and an
+`IssueErrors` cause without copy does not compile. `mount()` turns the page files under
+`src/modules/*/pages` into routes behind their guards, `useForm` checks a form against the endpoint's
+input type before sending it, and `useChannel` listens to a gateway typed by its contract.
+
