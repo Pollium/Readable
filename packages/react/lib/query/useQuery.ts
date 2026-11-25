@@ -32,6 +32,14 @@ export const keyOf = (endpoint: Pick<Endpoint, 'method' | 'path'>, { path, query
 
 const unsubscribed = () => undefined;
 
+export const prefetch = <O>(endpoint: Endpoint<never, O>, target: Target = {}): Promise<void> => {
+    if(!isComplete(endpoint.path, target.path)) return Promise.resolve();
+
+    const key = keyOf(endpoint, target);
+    cache.ensure(key, pathOf(endpoint.path, target.path), () => request(endpoint, target));
+    return cache.fetch(key);
+};
+
 export const useQuery = <O, T = O>(
     endpoint: Endpoint<never, O>,
     target: Target | Pending = {},
