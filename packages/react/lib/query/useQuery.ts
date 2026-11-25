@@ -12,13 +12,13 @@ export interface Query<T, O = T>{
     set: (data: O) => void;
 }
 
-export type AnyQuery = Query<unknown, never>;
+export type Upstream = Pick<Query<unknown>, 'data' | 'loading' | 'error' | 'reload'>;
 
 export interface QueryOptions<O, T>{
     select?: (data: O) => T;
     enabled?: boolean;
     fresh?: boolean;
-    dependsOn?: AnyQuery | readonly AnyQuery[];
+    dependsOn?: Upstream | readonly Upstream[];
 }
 
 export type Pending = false | null | undefined | '' | 0;
