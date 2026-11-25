@@ -128,6 +128,23 @@ describe('useChannel', () => {
         expect(sockets.opened).toHaveLength(1);
     });
 
+    it('keeps the session and reconnects when the gateway takes back one room', () => {
+        vi.useFakeTimers();
+        const sockets = fakeSockets();
+        session.start('token-a');
+        const { result } = renderHook(() => useChannel(noteGateway, {}, { join: ['note.watch', { notebookId: 'nb1' }] }));
+        act(() => sockets.last.open());
+
+        act(() => sockets.last.close(4403));
+        act(() => vi.advanceTimersByTime(500));
+        act(() => sockets.last.open());
+
+        expect(session.token).toBe('token-a');
+        expect(sockets.opened).toHaveLength(2);
+        expect(result.current.status).toBe('open');
+        expect(sockets.last.sent).toEqual([{ type: 'note.watch', notebookId: 'nb1' }]);
+    });
+
     it('sends nothing while the socket is not open', () => {
         fakeSockets();
         const { result } = renderHook(() => useChannel(noteGateway, {}));

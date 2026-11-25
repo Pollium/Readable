@@ -186,8 +186,9 @@ useChannel(towerGateway, { 'tower.overview': overview.set }, { join: ['tower.wat
 - The socket sends the session's token as its subprotocol, which `SocketAuthenticatedRoute` reads, and
   reconnects with a backoff, at once when the browser is back online or the tab is shown again.
 - `join` is sent on every open, so after a reconnect too, and again when it changes.
-- A close with `SocketClose.SessionExpired` (4401) or `AccessRevoked` (4403) ends the session and stays
-  closed.
+- A close with `SocketClose.SessionExpired` (4401) ends the session and stays closed. `AccessRevoked`
+  (4403) reconnects: the gateway sends it when a socket loses one room, such as a conversation deleted
+  while open, and a session that was really revoked ends on the next call the api refuses.
 - `useChannel` answers `{ send, status, lastError, clearError }`; `lastError` is the last `{ error }`
   frame, and `onError(error, sessionId)` hears each one with the `sessionId` it names.
 

@@ -15,7 +15,6 @@ interface Frame{
 
 export type ErrorHandler = (error: string, sessionId: string | undefined) => void;
 
-const ENDS_SESSION: number[] = [SocketClose.SessionExpired, SocketClose.AccessRevoked];
 
 const subscribed = <T>(handlers: Set<Handler<T>>, handler: Handler<T>): (() => void) => {
     handlers.add(handler);
@@ -97,7 +96,7 @@ export class SocketChannel{
     #onClose(code: number, token: string | null){
         this.#socket = null;
         if(this.#closed) return;
-        if(ENDS_SESSION.includes(code) && token !== null && token === session.token){
+        if(code === SocketClose.SessionExpired && token !== null && token === session.token){
             session.end(token);
             this.#setStatus('closed');
             return;
