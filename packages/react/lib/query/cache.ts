@@ -9,6 +9,7 @@ export interface Snapshot{
 }
 
 interface Entry{
+    base: string;
     path: string;
     load: () => Promise<unknown>;
     snapshot: Snapshot;
@@ -24,10 +25,10 @@ const EMPTY: Snapshot = { data: undefined, error: undefined, fetching: false, la
 class QueryCache{
     readonly #entries = new Map<string, Entry>();
 
-    ensure(key: string, path: string, load: () => Promise<unknown>){
+    ensure(key: string, path: string, load: () => Promise<unknown>, base = ''){
         if(this.#entries.has(key)) return;
         this.#sweep();
-        this.#entries.set(key, { path, load, snapshot: EMPTY, fetchedAt: 0, run: 0, pending: null, listeners: new Set(), idleSince: Date.now() });
+        this.#entries.set(key, { base, path, load, snapshot: EMPTY, fetchedAt: 0, run: 0, pending: null, listeners: new Set(), idleSince: Date.now() });
     }
 
     snapshot(key: string | null): Snapshot{
@@ -77,10 +78,10 @@ class QueryCache{
         this.#update(entry, { data, error: undefined, fetching: false, landed: true });
     }
 
-    async refresh(matches: (path: string) => boolean){
+    async refresh(matches: (path: string, base: string) => boolean){
         const refreshing: Promise<void>[] = [];
         for(const [key, entry] of this.#entries){
-            if(!matches(entry.path)) continue;
+            if(!matches(entry.path, entry.base)) continue;
             entry.fetchedAt = 0;
             if(entry.listeners.size > 0) refreshing.push(this.fetch(key, { force: true }));
         }

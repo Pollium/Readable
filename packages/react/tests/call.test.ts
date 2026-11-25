@@ -30,6 +30,16 @@ describe('call', () => {
         expect(api.sent[0].headers).toEqual({ Authorization: 'Bearer token-a', 'X-Share-Token': 'share-1' });
     });
 
+    it('calls another api at the base it is given, with the same session', async () => {
+        const api = fakeApi();
+        api.on('GET', '/me', { body: { data: { id: 'iam-user' } } });
+        session.start('token-a');
+
+        expect(await call(noteRoutes.me, { base: 'http://iam.test/' })).toEqual({ id: 'iam-user' });
+        expect(api.sent[0].url.origin).toBe('http://iam.test');
+        expect(api.sent[0].headers.Authorization).toBe('Bearer token-a');
+    });
+
     it('writes the query in a stable order and leaves out empty values', async () => {
         const api = fakeApi();
         api.on('GET', '/notebooks/nb1/notes', { body: { data: [] } });

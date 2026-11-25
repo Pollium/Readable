@@ -27,8 +27,8 @@ const headersKey = (headers: Target['headers']): string => headers === undefined
     ? ''
     : ` ${JSON.stringify(Object.entries(headers).sort(([a], [b]) => a.localeCompare(b)))}`;
 
-export const keyOf = (endpoint: Pick<Endpoint, 'method' | 'path'>, { path, query, headers }: Target): string =>
-    `${endpoint.method} ${pathOf(endpoint.path, path)}${searchOf(query)}${headersKey(headers)}`;
+export const keyOf = (endpoint: Pick<Endpoint, 'method' | 'path'>, { base = '', path, query, headers }: Target): string =>
+    `${endpoint.method} ${base}${pathOf(endpoint.path, path)}${searchOf(query)}${headersKey(headers)}`;
 
 const unsubscribed = () => undefined;
 
@@ -36,7 +36,7 @@ export const prefetch = <O>(endpoint: Endpoint<never, O>, target: Target = {}): 
     if(!isComplete(endpoint.path, target.path)) return Promise.resolve();
 
     const key = keyOf(endpoint, target);
-    cache.ensure(key, pathOf(endpoint.path, target.path), () => request(endpoint, target));
+    cache.ensure(key, pathOf(endpoint.path, target.path), () => request(endpoint, target), target.base);
     return cache.fetch(key);
 };
 
@@ -53,7 +53,7 @@ export const useQuery = <O, T = O>(
     const key = ready ? keyOf(endpoint, target || {}) : null;
 
     if(key !== null){
-        cache.ensure(key, pathOf(endpoint.path, (target || {}).path), () => request(endpoint, target || {}));
+        cache.ensure(key, pathOf(endpoint.path, (target || {}).path), () => request(endpoint, target || {}), (target || {}).base);
     }
 
     const subscribe = useCallback(

@@ -109,6 +109,17 @@ describe('useQuery', () => {
         await waitFor(() => expect(own.result.current.data).toEqual([note('own')]));
     });
 
+    it('keeps the answers of two apis apart, even at the same path', async () => {
+        const api = fakeApi();
+        api.on('GET', '/me', ({ url }) => ({ body: { data: { id: url.host } } }));
+
+        const own = renderHook(() => useQuery(noteRoutes.me));
+        const iam = renderHook(() => useQuery(noteRoutes.me, { base: 'http://iam.test' }));
+
+        await waitFor(() => expect(own.result.current.data).toEqual({ id: 'api.test' }));
+        await waitFor(() => expect(iam.result.current.data).toEqual({ id: 'iam.test' }));
+    });
+
     it('answers from memory for 30 seconds, then asks again', async () => {
         vi.useFakeTimers({ toFake: ['Date'] });
         const api = fakeApi();
