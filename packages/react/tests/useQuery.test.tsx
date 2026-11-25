@@ -90,6 +90,19 @@ describe('useQuery', () => {
         await waitFor(() => expect(api.calls('GET', '/me')).toHaveLength(2));
     });
 
+    it('keeps the same reload and set across renders, so an effect can depend on them', async () => {
+        const api = fakeApi();
+        api.on('GET', '/me', { body: { data: { id: 'u1' } } });
+        const { result, rerender } = renderHook(() => useQuery(noteRoutes.me));
+        const { reload, set } = result.current;
+
+        rerender();
+        await waitFor(() => expect(result.current.data).toEqual({ id: 'u1' }));
+
+        expect(result.current.reload).toBe(reload);
+        expect(result.current.set).toBe(set);
+    });
+
     it('keeps its data and tells the error when a reload fails', async () => {
         const api = fakeApi();
         api.on('GET', '/me', { body: { data: { id: 'u1' } } });

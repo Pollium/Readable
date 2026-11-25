@@ -55,18 +55,22 @@ export const useQuery = <O, T = O>(
         if(key !== null) void cache.fetch(key, { maxAge: fresh ? 0 : 30_000 });
     }, [key, token, fresh]);
 
+    const upstreamReload = failed?.reload;
+    const reload = useCallback(() => {
+        if(upstreamReload !== undefined) return upstreamReload();
+        if(key !== null) void cache.fetch(key, { force: true });
+    }, [key, upstreamReload]);
+    const set = useCallback((value: O) => {
+        if(key !== null) cache.set(key, value);
+    }, [key]);
+
     const data = snapshot.landed ? snapshot.data as O : null;
 
     return {
         data: data === null ? null : select === undefined ? data as O & T : select(data),
         loading: waiting || (ready && (snapshot.fetching || (!snapshot.landed && snapshot.error === undefined))),
         error: failed?.error ?? (ready ? snapshot.error : undefined),
-        reload: () => {
-            if(failed !== undefined) return failed.reload();
-            if(key !== null) void cache.fetch(key, { force: true });
-        },
-        set: (value: O) => {
-            if(key !== null) cache.set(key, value);
-        }
+        reload,
+        set
     };
 };
