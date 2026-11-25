@@ -131,6 +131,16 @@ describe('useMutation', () => {
         expect(listFrom('api.test')).toHaveLength(1);
     });
 
+    it('refreshes everything on screen when it names nothing', async () => {
+        const api = seeded();
+        await mounted();
+
+        await act(() => invalidate());
+
+        expect(api.calls('GET', '/me')).toHaveLength(2);
+        expect(api.calls('GET', '/notebooks/nb2/notes')).toHaveLength(2);
+    });
+
     it('asks again on the next mount for a query nobody was reading', async () => {
         const api = seeded();
         const first = renderHook(() => useQuery(noteRoutes.list, { path: { notebookId: 'nb2' } }));

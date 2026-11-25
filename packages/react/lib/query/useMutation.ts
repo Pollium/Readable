@@ -27,7 +27,7 @@ const patternOf = ({ path }: Resource): RegExp =>
 
 export const invalidate = (...resources: readonly Resource[]): Promise<void> => {
     const patterns = resources.map(patternOf);
-    return cache.refresh((path) => patterns.some((pattern) => pattern.test(path)));
+    return cache.refresh((path) => patterns.length === 0 || patterns.some((pattern) => pattern.test(path)));
 };
 
 export const refreshAfter = (
