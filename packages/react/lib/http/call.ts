@@ -14,7 +14,7 @@ export interface Target{
     headers?: Readonly<Record<string, string>>;
 }
 
-type Body<I> = [I] extends [never]
+export type Body<I> = [I] extends [never]
     ? { body?: FormData }
     : undefined extends I ? { body?: I | FormData } : { body: I | FormData };
 
