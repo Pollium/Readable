@@ -38,12 +38,15 @@ export const keyOf = (
 
 const unsubscribed = () => undefined;
 
-export const prefetch = <I, O>(endpoint: Endpoint<I, O>, target: QueryTarget<I> = {} as QueryTarget<I>): Promise<void> => {
-    if(!isComplete(endpoint.path, target.path)) return Promise.resolve();
+export const prefetch = async <I, O>(endpoint: Endpoint<I, O>, target: QueryTarget<I> = {} as QueryTarget<I>): Promise<O | null> => {
+    if(!isComplete(endpoint.path, target.path)) return null;
 
     const key = keyOf(endpoint, target);
     cache.ensure(key, pathOf(endpoint.path, target.path), () => request(endpoint, target), target.base);
-    return cache.fetch(key);
+    await cache.fetch(key);
+
+    const { data, error, landed } = cache.snapshot(key);
+    return landed && error === undefined ? data as O : null;
 };
 
 export const useQuery = <I, O, T = O>(
