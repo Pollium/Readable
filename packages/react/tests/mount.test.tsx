@@ -66,6 +66,14 @@ describe('appRoutes', () => {
         expect(await screen.findByText('home')).toBeTruthy();
         expect(router.state.location.pathname).toBe('/');
     });
+
+    it('shows the not-found page the app gives for an unknown path', async () => {
+        const router = createMemoryRouter(appRoutes({ pages, notFound: () => <p>no such page</p> }), { initialEntries: ['/nowhere'] });
+        render(<RouterProvider router={router} />);
+
+        expect(await screen.findByText('no such page')).toBeTruthy();
+        expect(router.state.location.pathname).toBe('/nowhere');
+    });
 });
 
 describe('mount', () => {

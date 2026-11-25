@@ -8,6 +8,7 @@ import { createBrowserRouter, Navigate, Outlet, RouteObject, RouterProvider, use
 export interface RouteOptions{
     pages: PageFiles;
     layout?: ComponentType;
+    notFound?: ComponentType;
     signIn?: string;
     home?: string;
 }
@@ -36,7 +37,7 @@ const SignedIn = ({ signIn }: { signIn: string }) => {
     return <Navigate to={next === '/' ? signIn : `${signIn}?next=${encodeURIComponent(next)}`} replace />;
 };
 
-export const appRoutes = ({ pages, layout: Layout, signIn = '/sign-in', home = '/' }: RouteOptions): RouteObject[] => {
+export const appRoutes = ({ pages, layout: Layout, notFound: NotFound, signIn = '/sign-in', home = '/' }: RouteOptions): RouteObject[] => {
     const found = pagesOf(pages);
     const tier = (name: PageTier) => routesOf(found.filter((page) => page.tier === name));
     const signedIn = tier('protected');
@@ -48,7 +49,7 @@ export const appRoutes = ({ pages, layout: Layout, signIn = '/sign-in', home = '
             element: <SignedIn signIn={signIn} />,
             children: Layout === undefined ? signedIn : [{ element: <Layout />, children: signedIn }]
         },
-        { path: '*', element: <Navigate to={home} replace /> }
+        { path: '*', element: NotFound === undefined ? <Navigate to={home} replace /> : <NotFound /> }
     ];
 };
 
