@@ -67,13 +67,10 @@ export const urlOf = (endpoint: Pick<Endpoint, 'path'>, { path, query }: Target 
 
 const isJson = (body: unknown): boolean => body !== undefined && !(body instanceof FormData);
 
-const headersOf = (body: unknown): Record<string, string> => {
-    const token = session.token;
-    return {
-        ...(isJson(body) ? { 'Content-Type': 'application/json' } : {}),
-        ...(token === null ? {} : { Authorization: `Bearer ${token}` })
-    };
-};
+const headersOf = (body: unknown, token: string | null): Record<string, string> => ({
+    ...(isJson(body) ? { 'Content-Type': 'application/json' } : {}),
+    ...(token === null ? {} : { Authorization: `Bearer ${token}` })
+});
 
 const unwrap = (payload: unknown): unknown => {
     const answer = payload as ApiResponse<unknown> | undefined;
@@ -96,9 +93,10 @@ const send = async (url: string, init: RequestInit): Promise<Response> => {
 
 export const request = async (endpoint: Pick<Endpoint, 'method' | 'path'>, args: CallArgs<unknown> = {}): Promise<unknown> => {
     const { path, query, body, signal, keepalive } = args;
+    const token = session.token;
     const response = await send(urlOf(endpoint, { path, query }), {
         method: endpoint.method,
-        headers: headersOf(body),
+        headers: headersOf(body, token),
         body: isJson(body) ? JSON.stringify(body) : body as FormData | undefined,
         signal,
         keepalive
@@ -107,7 +105,7 @@ export const request = async (endpoint: Pick<Endpoint, 'method' | 'path'>, args:
     if(response.ok) return unwrap(payload);
 
     const code = (payload as ErrorBody | undefined)?.error ?? response.statusText;
-    if(response.status === 401 && ENDS_SESSION.includes(baseCodeOf(code))) session.end();
+    if(response.status === 401 && token !== null && ENDS_SESSION.includes(baseCodeOf(code))) session.end(token);
     throw new ApiError(response.status, code, payload);
 };
 

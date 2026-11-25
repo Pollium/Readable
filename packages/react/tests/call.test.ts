@@ -3,7 +3,7 @@ import { ApiError } from '../lib/http/ApiError';
 import { session } from '../lib/session/session';
 import { fakeApi } from './support/fake-api';
 import { noteRoutes } from './support/notes';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 describe('call', () => {
     afterEach(() => session.end());
@@ -61,6 +61,24 @@ describe('call', () => {
 
         await expect(call(noteRoutes.me)).rejects.toThrow('Auth::InvalidToken');
         expect(session.token).toBeNull();
+    });
+
+    it('keeps a session started while a call with the old token was on its way', async () => {
+        const api = fakeApi();
+        const refused = Promise.withResolvers<void>();
+        api.on('GET', '/me', async () => {
+            await refused.promise;
+            return { status: 401, body: { error: 'Auth::InvalidToken' } };
+        });
+        session.start('token-a');
+
+        const answer = call(noteRoutes.me).catch(() => undefined);
+        await vi.waitFor(() => expect(api.sent).toHaveLength(1));
+        session.start('token-b');
+        refused.resolve();
+        await answer;
+
+        expect(session.token).toBe('token-b');
     });
 
     it('keeps the session for any other refusal', async () => {
