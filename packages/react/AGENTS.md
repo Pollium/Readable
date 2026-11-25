@@ -86,6 +86,8 @@ const detail = useQuery(issueRoutes.get, { path: { projectId, issueId } });
   `{ data, loading, error, reload }`, a query from an app's own hook too. A query in `dependsOn` that
   failed fails this one too.
 - `select: (data) => ...` reads part of the answer. A paginated answer is `{ items, meta }`.
+- A read the api takes as a `POST` with a body is `useQuery(paletteRoutes.list, { body })`; its answer is
+  remembered per body.
 - Every component reading the same path and query shares one request and one answer. An answer is
   fresh for 30 seconds: a page opened again in that time shows it without asking.
 - A reload keeps the data on screen while it asks, and keeps it with `error` set when it fails.
