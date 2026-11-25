@@ -14,7 +14,7 @@ export interface Target{
 }
 
 type Body<I> = [I] extends [never]
-    ? { body?: undefined }
+    ? { body?: FormData }
     : undefined extends I ? { body?: I | FormData } : { body: I | FormData };
 
 export type CallArgs<I> = Target & Body<I> & {

@@ -133,7 +133,7 @@ describe('call', () => {
         expect(api.sent[0].body).toBe(form);
     });
 
-    it('asks for a body only when the endpoint takes one', () => {
+    it('asks for a body only when the endpoint takes one, and takes a file for any', () => {
         const typed = () => {
             // @ts-expect-error the endpoint takes a note
             void call(noteRoutes.create, { path: { notebookId: 'nb1' } });
@@ -141,6 +141,9 @@ describe('call', () => {
             void call(noteRoutes.create, { path: { notebookId: 'nb1' }, body: { name: 'a' } });
             void call(noteRoutes.archive, { path: { notebookId: 'nb1', noteId: 'n1' } });
             void call(noteRoutes.me);
+            void call(noteRoutes.remove, { path: { notebookId: 'nb1', noteId: 'n1' }, body: new FormData() });
+            // @ts-expect-error an endpoint with no input takes no JSON body
+            void call(noteRoutes.remove, { path: { notebookId: 'nb1', noteId: 'n1' }, body: { title: 'a' } });
         };
 
         expect(typed).toBeTypeOf('function');
