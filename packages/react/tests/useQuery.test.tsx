@@ -1,8 +1,8 @@
-import { session } from '../lib/session/session';
+import { session, useSession } from '../lib/session/session';
 import { useQuery } from '../lib/query/useQuery';
 import { fakeApi } from './support/fake-api';
 import { Note, noteRoutes } from './support/notes';
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 const note = (id: string, title = id): Note => ({ id, title });
@@ -148,6 +148,22 @@ describe('useQuery', () => {
         act(() => result.current.set(note('n1', 'renamed')));
 
         expect(result.current.data).toEqual(note('n1', 'renamed'));
+    });
+
+    it('asks nothing more for a page the end of the session took away', async () => {
+        const api = fakeApi();
+        api.on('GET', '/me', { body: { data: { id: 'u1' } } });
+        session.start('token-a');
+        const Me = () => <p>{useQuery(noteRoutes.me).data?.id}</p>;
+        const Guarded = () => useSession() === null ? <p>signed out</p> : <Me />;
+        render(<Guarded />);
+        expect(await screen.findByText('u1')).toBeTruthy();
+
+        act(() => session.end());
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        expect(screen.getByText('signed out')).toBeTruthy();
+        expect(api.calls('GET', '/me')).toHaveLength(1);
     });
 
     it('forgets what it loaded when the session ends, and asks again without it', async () => {
