@@ -44,6 +44,7 @@ describe('readableConfig', () => {
     it('runs the tests under src in a browser, with the setup when there is one', () => {
         expect(readableConfig({}, { root }).test).toMatchObject({
             environment: 'happy-dom',
+            execArgv: ['--no-experimental-webstorage'],
             include: ['src/**/*.test.{ts,tsx}'],
             setupFiles: [join(root, 'tests/setup.ts')]
         });

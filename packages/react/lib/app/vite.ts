@@ -39,6 +39,7 @@ export const readableConfig = (
         },
         test: {
             environment: 'happy-dom',
+            execArgv: ['--no-experimental-webstorage'],
             include: ['src/**/*.test.{ts,tsx}'],
             setupFiles: existsSync(setup) ? [setup] : []
         }
