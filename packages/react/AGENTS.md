@@ -91,6 +91,7 @@ const detail = useQuery(issueRoutes.get, { path: { projectId, issueId } });
 - `fresh: true` asks again every time the query mounts, showing the remembered answer meanwhile.
 - `set(data)` replaces the answer: a frame from a gateway goes there. `reload` and `set` stay the same
   across renders, so an effect may depend on them.
+- `headers: { 'X-Share-Token': token }` adds headers to a call; a query remembers its answer per headers.
 - `call(endpoint, { path, query, body })` from `http/call` is the same request outside React.
 
 ## Mutations
@@ -180,7 +181,7 @@ useChannel(towerGateway, { 'tower.overview': overview.set }, { join: ['tower.wat
 - A close with `SocketClose.SessionExpired` (4401) or `AccessRevoked` (4403) ends the session and stays
   closed.
 - `useChannel` answers `{ send, status, lastError, clearError }`; `lastError` is the last `{ error }`
-  frame.
+  frame, and `onError(error, sessionId)` hears each one with the `sessionId` it names.
 
 ## Forms
 
