@@ -8,7 +8,7 @@ if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 fi
 
 packed="$(mktemp -d)"
-for package in contracts server; do
+for package in contracts server react; do
     (cd "packages/$package" && npm pkg set version="$version" && pnpm build && pnpm pack --pack-destination "$packed")
 done
 
@@ -22,3 +22,4 @@ publish(){
 
 publish @pollium/readable-contracts pollium-readable-contracts
 publish @pollium/readable pollium-readable
+publish @pollium/readable-react pollium-readable-react
