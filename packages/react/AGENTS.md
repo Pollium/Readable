@@ -88,7 +88,9 @@ const detail = useQuery(issueRoutes.get, { path: { projectId, issueId } });
 - Every component reading the same path and query shares one request and one answer. An answer is
   fresh for 30 seconds: a page opened again in that time shows it without asking.
 - A reload keeps the data on screen while it asks, and keeps it with `error` set when it fails.
-- `set(data)` replaces the answer: a frame from a gateway goes there.
+- `fresh: true` asks again every time the query mounts, showing the remembered answer meanwhile.
+- `set(data)` replaces the answer: a frame from a gateway goes there. `reload` and `set` stay the same
+  across renders, so an effect may depend on them.
 - `call(endpoint, { path, query, body })` from `http/call` is the same request outside React.
 
 ## Mutations

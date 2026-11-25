@@ -44,11 +44,11 @@ class QueryCache{
         };
     }
 
-    fetch(key: string, force = false): Promise<void>{
+    fetch(key: string, { force = false, maxAge = 30_000 }: { force?: boolean; maxAge?: number } = {}): Promise<void>{
         const entry = this.#entries.get(key);
         if(entry === undefined) return Promise.resolve();
         if(!force && entry.pending !== null) return entry.pending;
-        if(!force && Date.now() - entry.fetchedAt < 30_000) return Promise.resolve();
+        if(!force && Date.now() - entry.fetchedAt < maxAge) return Promise.resolve();
 
         const run = ++entry.run;
         this.#update(entry, { fetching: true });
@@ -82,7 +82,7 @@ class QueryCache{
         for(const [key, entry] of this.#entries){
             if(!matches(entry.path)) continue;
             entry.fetchedAt = 0;
-            if(entry.listeners.size > 0) refreshing.push(this.fetch(key, true));
+            if(entry.listeners.size > 0) refreshing.push(this.fetch(key, { force: true }));
         }
         await Promise.all(refreshing);
     }
