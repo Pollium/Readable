@@ -9,7 +9,7 @@ export const autoValidateBody = () => ({
             /@Body\(\)(\s+)(\w+):(\s*)(\w+)/g,
             '@Body(typia.misc.createValidatePrune<$4>())$1$2:$3$4'
         );
-        if(!/from 'typia'/.test(out)) out += "\nimport typia from 'typia';\n";
+        if(!/^import typia\b/m.test(code)) out += "\nimport typia from 'typia';\n";
         return {
             code: out,
             map: null
