@@ -82,7 +82,8 @@ const detail = useQuery(issueRoutes.get, { path: { projectId, issueId } });
 
 - A query answers `{ data, loading, error, reload, set }`. `data` is `null` until something lands.
 - It waits while a path param is `undefined`, while the target is falsy (`issueId && { ... }`), while
-  `enabled` is `false` and while a query in `dependsOn` has no data yet. A query in `dependsOn` that
+  `enabled` is `false` and while a query in `dependsOn` has no data yet. `dependsOn` takes any
+  `{ data, loading, error, reload }`, a query from an app's own hook too. A query in `dependsOn` that
   failed fails this one too.
 - `select: (data) => ...` reads part of the answer. A paginated answer is `{ items, meta }`.
 - Every component reading the same path and query shares one request and one answer. An answer is
@@ -92,6 +93,8 @@ const detail = useQuery(issueRoutes.get, { path: { projectId, issueId } });
 - `set(data)` replaces the answer: a frame from a gateway goes there. `reload` and `set` stay the same
   across renders, so an effect may depend on them.
 - `headers: { 'X-Share-Token': token }` adds headers to a call; a query remembers its answer per headers.
+- `base: env.iamServerUrl` sends a call, a query or a mutation to another api, with the same session; its
+  answers are remembered apart from the main api's, and a mutation refreshes only its own api's branch.
 - `prefetch(endpoint, target)` from `query/useQuery` asks before the page mounts, from a route's loader or
   a hovered link; the query that mounts later answers from it, or shares it while it is on its way.
 - `call(endpoint, { path, query, body })` from `http/call` is the same request outside React.
@@ -109,7 +112,8 @@ await update.run({ body: { status } });
   /projects/1/issues/9` refreshes `/projects/1/issues/9`, what is under it, and `/projects/1/issues`,
   `/projects/1` and `/projects` above it. A `DELETE` refreshes only what is above it.
 - `invalidates: [projectRoutes.stats]` refreshes the queries of other endpoints as well.
-  `invalidate(projectRoutes.stats)` does it outside a mutation.
+  `invalidate(projectRoutes.stats)` does it outside a mutation, and `invalidate()` with nothing refreshes
+  every query.
 - A query on screen asks again at once; one nobody is reading asks the next time it is read.
 - `run` throws the error and keeps it in `error`; `reset()` clears it.
 

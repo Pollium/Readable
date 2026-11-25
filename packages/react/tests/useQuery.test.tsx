@@ -1,5 +1,5 @@
 import { session, useSession } from '../lib/session/session';
-import { prefetch, useQuery } from '../lib/query/useQuery';
+import { prefetch, Upstream, useQuery } from '../lib/query/useQuery';
 import { fakeApi } from './support/fake-api';
 import { Note, noteRoutes } from './support/notes';
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
@@ -107,6 +107,29 @@ describe('useQuery', () => {
 
         await waitFor(() => expect(shared.result.current.data).toEqual([note('share-1')]));
         await waitFor(() => expect(own.result.current.data).toEqual([note('own')]));
+    });
+
+    it('keeps the answers of two apis apart, even at the same path', async () => {
+        const api = fakeApi();
+        api.on('GET', '/me', ({ url }) => ({ body: { data: { id: url.host } } }));
+
+        const own = renderHook(() => useQuery(noteRoutes.me));
+        const iam = renderHook(() => useQuery(noteRoutes.me, { base: 'http://iam.test' }));
+
+        await waitFor(() => expect(own.result.current.data).toEqual({ id: 'api.test' }));
+        await waitFor(() => expect(iam.result.current.data).toEqual({ id: 'iam.test' }));
+    });
+
+    it('waits for any query it depends on, one with no set too', async () => {
+        const api = fakeApi();
+        api.on('GET', '/notebooks', { body: { data: [] } });
+        const team: Upstream = { data: null, loading: true, error: undefined, reload: vi.fn() };
+
+        const { result, rerender } = renderHook(({ upstream }) => useQuery(noteRoutes.notebooks, {}, { dependsOn: upstream }), { initialProps: { upstream: team } });
+        expect(api.sent).toHaveLength(0);
+
+        rerender({ upstream: { ...team, data: { id: 't1' }, loading: false } });
+        await waitFor(() => expect(result.current.data).toEqual([]));
     });
 
     it('answers from memory for 30 seconds, then asks again', async () => {

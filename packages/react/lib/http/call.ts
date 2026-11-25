@@ -8,6 +8,7 @@ import { Endpoint } from '@pollium/readable-contracts/routing';
 export type PathValues = Readonly<Record<string, string | number | undefined>>;
 
 export interface Target{
+    base?: string;
     path?: PathValues;
     query?: object;
     headers?: Readonly<Record<string, string>>;
@@ -63,8 +64,8 @@ export const searchOf = (query: object = {}): string => {
     return search === '' ? '' : `?${search}`;
 };
 
-export const urlOf = (endpoint: Pick<Endpoint, 'path'>, { path, query }: Target = {}): string =>
-    `${settings().apiUrl}${pathOf(endpoint.path, path)}${searchOf(query)}`;
+export const urlOf = (endpoint: Pick<Endpoint, 'path'>, { base, path, query }: Target = {}): string =>
+    `${(base ?? settings().apiUrl).replace(/\/+$/, '')}${pathOf(endpoint.path, path)}${searchOf(query)}`;
 
 const isJson = (body: unknown): boolean => body !== undefined && !(body instanceof FormData);
 
@@ -104,9 +105,9 @@ const send = async (url: string, init: RequestInit): Promise<Response> => {
 };
 
 export const request = async (endpoint: Pick<Endpoint, 'method' | 'path'>, args: CallArgs<unknown> = {}): Promise<unknown> => {
-    const { path, query, headers, body, signal, keepalive } = args;
+    const { base, path, query, headers, body, signal, keepalive } = args;
     const token = session.token;
-    const response = await send(urlOf(endpoint, { path, query }), {
+    const response = await send(urlOf(endpoint, { base, path, query }), {
         method: endpoint.method,
         headers: { ...headersOf(body, token), ...headers },
         body: isJson(body) ? JSON.stringify(body) : body as FormData | undefined,

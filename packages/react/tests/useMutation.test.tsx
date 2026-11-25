@@ -112,6 +112,35 @@ describe('useMutation', () => {
         expect(askedAgain(api, '/notebooks/nb2/notes')).toBe(false);
     });
 
+    it('refreshes the branch on the api it changed, not the same path on another', async () => {
+        const api = fakeApi();
+        api.on('GET', '/notebooks/nb1/notes', { body: { data: [note('n1')] } });
+        api.on('PATCH', '/notebooks/nb1/notes/n1', { body: { data: note('n1', 'b') } });
+        const page = renderHook(() => ({
+            own: useQuery(noteRoutes.list, { path: notebook }),
+            iam: useQuery(noteRoutes.list, { base: 'http://iam.test', path: notebook })
+        }));
+        await waitFor(() => expect(page.result.current.iam.data).toEqual([note('n1')]));
+        await waitFor(() => expect(page.result.current.own.data).toEqual([note('n1')]));
+        const { result } = renderHook(() => useMutation(noteRoutes.update, { base: 'http://iam.test', path: { ...notebook, noteId: 'n1' } }));
+
+        await act(() => result.current.run({ body: { title: 'b' } }));
+
+        const listFrom = (host: string) => api.calls('GET', '/notebooks/nb1/notes').filter((sent) => sent.url.host === host);
+        await waitFor(() => expect(listFrom('iam.test')).toHaveLength(2));
+        expect(listFrom('api.test')).toHaveLength(1);
+    });
+
+    it('refreshes everything on screen when it names nothing', async () => {
+        const api = seeded();
+        await mounted();
+
+        await act(() => invalidate());
+
+        expect(api.calls('GET', '/me')).toHaveLength(2);
+        expect(api.calls('GET', '/notebooks/nb2/notes')).toHaveLength(2);
+    });
+
     it('asks again on the next mount for a query nobody was reading', async () => {
         const api = seeded();
         const first = renderHook(() => useQuery(noteRoutes.list, { path: { notebookId: 'nb2' } }));

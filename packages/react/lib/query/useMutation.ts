@@ -7,6 +7,7 @@ import { useState } from 'react';
 type Resource = Pick<Endpoint, 'path'>;
 
 export interface MutationOptions<O>{
+    base?: string;
     path?: PathValues;
     invalidates?: readonly Resource[];
     onSuccess?: (data: O) => void;
@@ -26,36 +27,37 @@ const patternOf = ({ path }: Resource): RegExp =>
 
 export const invalidate = (...resources: readonly Resource[]): Promise<void> => {
     const patterns = resources.map(patternOf);
-    return cache.refresh((path) => patterns.some((pattern) => pattern.test(path)));
+    return cache.refresh((path) => patterns.length === 0 || patterns.some((pattern) => pattern.test(path)));
 };
 
 export const refreshAfter = (
     method: string,
     changed: string,
-    invalidates: readonly Resource[] = []
+    invalidates: readonly Resource[] = [],
+    base = ''
 ): Promise<void> => {
     const patterns = invalidates.map(patternOf);
     const onBranch = (path: string) => isAncestor(path, changed)
         || (method !== 'DELETE' && (path === changed || isAncestor(changed, path)));
 
-    return cache.refresh((path) => onBranch(path) || patterns.some((pattern) => pattern.test(path)));
+    return cache.refresh((path, entryBase) => (entryBase === base && onBranch(path)) || patterns.some((pattern) => pattern.test(path)));
 };
 
 export const useMutation = <I, O>(
     endpoint: Endpoint<I, O>,
-    { path, invalidates, onSuccess }: MutationOptions<O> = {}
+    { base, path, invalidates, onSuccess }: MutationOptions<O> = {}
 ): Mutation<I, O> => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<Error | undefined>(undefined);
 
     const run = async (...[args]: ArgsOf<I>): Promise<O> => {
-        const merged: CallArgs<unknown> = { ...args, path: { ...path, ...args?.path } };
+        const merged: CallArgs<unknown> = { base, ...args, path: { ...path, ...args?.path } };
         setLoading(true);
         setError(undefined);
 
         try{
             const data = await request(endpoint, merged) as O;
-            void refreshAfter(endpoint.method, pathOf(endpoint.path, merged.path), invalidates);
+            void refreshAfter(endpoint.method, pathOf(endpoint.path, merged.path), invalidates, merged.base);
             onSuccess?.(data);
             return data;
         }catch(cause: unknown){
