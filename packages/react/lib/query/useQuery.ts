@@ -17,6 +17,7 @@ export type AnyQuery = Query<unknown, never>;
 export interface QueryOptions<O, T>{
     select?: (data: O) => T;
     enabled?: boolean;
+    fresh?: boolean;
     dependsOn?: AnyQuery | readonly AnyQuery[];
 }
 
@@ -30,7 +31,7 @@ const unsubscribed = () => undefined;
 export const useQuery = <O, T = O>(
     endpoint: Endpoint<never, O>,
     target: Target | Pending = {},
-    { select, enabled = true, dependsOn }: QueryOptions<O, T> = {}
+    { select, enabled = true, fresh = false, dependsOn }: QueryOptions<O, T> = {}
 ): Query<T, O> => {
     const upstream = [dependsOn ?? []].flat();
     const failed = upstream.find((query) => query.error !== undefined && query.data === null);
@@ -51,8 +52,8 @@ export const useQuery = <O, T = O>(
     const token = useSession();
 
     useEffect(() => {
-        if(key !== null) void cache.fetch(key);
-    }, [key, token]);
+        if(key !== null) void cache.fetch(key, { maxAge: fresh ? 0 : 30_000 });
+    }, [key, token, fresh]);
 
     const data = snapshot.landed ? snapshot.data as O : null;
 
@@ -62,7 +63,7 @@ export const useQuery = <O, T = O>(
         error: failed?.error ?? (ready ? snapshot.error : undefined),
         reload: () => {
             if(failed !== undefined) return failed.reload();
-            if(key !== null) void cache.fetch(key, true);
+            if(key !== null) void cache.fetch(key, { force: true });
         },
         set: (value: O) => {
             if(key !== null) cache.set(key, value);

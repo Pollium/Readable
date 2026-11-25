@@ -77,6 +77,19 @@ describe('useQuery', () => {
         vi.useRealTimers();
     });
 
+    it('asks again on every mount when it must be fresh', async () => {
+        const api = fakeApi();
+        api.on('GET', '/me', { body: { data: { id: 'u1' } } });
+
+        const first = renderHook(() => useQuery(noteRoutes.me, {}, { fresh: true }));
+        await waitFor(() => expect(first.result.current.data).toEqual({ id: 'u1' }));
+        first.unmount();
+        const again = renderHook(() => useQuery(noteRoutes.me, {}, { fresh: true }));
+
+        expect(again.result.current).toMatchObject({ loading: true, data: { id: 'u1' } });
+        await waitFor(() => expect(api.calls('GET', '/me')).toHaveLength(2));
+    });
+
     it('keeps its data and tells the error when a reload fails', async () => {
         const api = fakeApi();
         api.on('GET', '/me', { body: { data: { id: 'u1' } } });
