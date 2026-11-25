@@ -18,6 +18,16 @@ describe('useQuery', () => {
         await waitFor(() => expect(result.current).toMatchObject({ loading: false, data: [note('n1')] }));
     });
 
+    it('reads an empty answer as no data, once it has landed', async () => {
+        const api = fakeApi();
+        api.on('GET', '/me', { status: 204 });
+
+        const { result } = renderHook(() => useQuery(noteRoutes.me));
+
+        await waitFor(() => expect(result.current.loading).toBe(false));
+        expect(result.current.data).toBeNull();
+    });
+
     it('waits while a path param is missing, then loads', async () => {
         const api = fakeApi();
         api.on('GET', '/notebooks/nb1/notes/n1', { body: { data: note('n1') } });

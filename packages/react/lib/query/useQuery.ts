@@ -64,7 +64,7 @@ export const useQuery = <O, T = O>(
         if(key !== null) cache.set(key, value);
     }, [key]);
 
-    const data = snapshot.landed ? snapshot.data as O : null;
+    const data = snapshot.landed && snapshot.data !== undefined ? snapshot.data as O : null;
 
     return {
         data: data === null ? null : select === undefined ? data as O & T : select(data),
