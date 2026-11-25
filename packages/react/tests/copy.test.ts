@@ -56,6 +56,12 @@ describe('copyFor', () => {
         expect(describeError(new Error('Billing::Declined'))).toBe('Something went wrong');
     });
 
+    it('hands the unknown copy the code it could not name', () => {
+        configure({ name: 'notes', copy: { ...appCopy, unknown: (code) => `Something went wrong (${code})` } });
+
+        expect(noteCopy(error('Billing::Declined:card'))).toBe('Something went wrong (Billing::Declined)');
+    });
+
     it('says the app is offline when the api cannot be reached', () => {
         configure({ name: 'notes', copy: appCopy });
 

@@ -27,7 +27,7 @@ type Codes = Readonly<Partial<Record<string, Copy>>>;
 
 export interface AppCopy{
     offline: Copy;
-    unknown: Copy;
+    unknown: string | ((code: string) => string);
     codes: Readonly<Record<ReadableErrorCode, Copy>> & Codes;
     fields?: Partial<FieldCopy>;
 }
@@ -50,7 +50,8 @@ const describing = (codes: Codes): ErrorCopy => {
         const code = baseCodeOf(error.message);
         const copy = codes[code] ?? app?.codes[code];
         if(copy !== undefined) return textOf(copy);
-        return app === null ? error.message : textOf(app.unknown);
+        if(app === null) return error.message;
+        return typeof app.unknown === 'function' ? app.unknown(code) : app.unknown;
     };
 
     return Object.assign(describe, {
