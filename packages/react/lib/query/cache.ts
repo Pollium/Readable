@@ -14,6 +14,7 @@ interface Entry{
     load: () => Promise<unknown>;
     snapshot: Snapshot;
     fetchedAt: number;
+    marks: number;
     run: number;
     pending: Promise<void> | null;
     listeners: Set<() => void>;
@@ -28,7 +29,7 @@ class QueryCache{
     ensure(key: string, path: string, load: () => Promise<unknown>, base = ''){
         if(this.#entries.has(key)) return;
         this.#sweep();
-        this.#entries.set(key, { base, path, load, snapshot: EMPTY, fetchedAt: 0, run: 0, pending: null, listeners: new Set(), idleSince: Date.now() });
+        this.#entries.set(key, { base, path, load, snapshot: EMPTY, fetchedAt: 0, marks: 0, run: 0, pending: null, listeners: new Set(), idleSince: Date.now() });
     }
 
     snapshot(key: string | null): Snapshot{
@@ -52,11 +53,12 @@ class QueryCache{
         if(!force && Date.now() - entry.fetchedAt < maxAge) return Promise.resolve();
 
         const run = ++entry.run;
+        const marks = entry.marks;
         this.#update(entry, { fetching: true });
         entry.pending = entry.load().then(
             (data) => {
                 if(run !== entry.run) return;
-                entry.fetchedAt = Date.now();
+                entry.fetchedAt = marks === entry.marks ? Date.now() : 0;
                 this.#update(entry, { data, error: undefined, fetching: false, landed: true });
             },
             (cause: unknown) => {
@@ -82,7 +84,7 @@ class QueryCache{
         const refreshing: Promise<void>[] = [];
         for(const [key, entry] of this.#entries){
             if(!matches(entry.path, entry.base)) continue;
-            entry.fetchedAt = 0;
+            this.#stale(entry);
             if(entry.listeners.size > 0) refreshing.push(this.fetch(key, { force: true }));
         }
         await Promise.all(refreshing);
@@ -95,6 +97,11 @@ class QueryCache{
             entry.fetchedAt = 0;
             this.#update(entry, EMPTY);
         }
+    }
+
+    #stale(entry: Entry){
+        entry.marks += 1;
+        entry.fetchedAt = 0;
     }
 
     #sweep(){
