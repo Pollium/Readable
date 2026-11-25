@@ -90,6 +90,12 @@ class QueryCache{
         await Promise.all(refreshing);
     }
 
+    markStale(matches: (path: string, base: string) => boolean){
+        for(const entry of this.#entries.values()){
+            if(matches(entry.path, entry.base)) this.#stale(entry);
+        }
+    }
+
     clear(){
         for(const entry of this.#entries.values()){
             entry.run += 1;

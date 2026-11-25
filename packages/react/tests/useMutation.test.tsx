@@ -1,4 +1,4 @@
-import { useMutation, invalidate } from '../lib/query/useMutation';
+import { useMutation, invalidate, markStale } from '../lib/query/useMutation';
 import { useQuery } from '../lib/query/useQuery';
 import { Answer, fakeApi } from './support/fake-api';
 import { Note, noteRoutes } from './support/notes';
@@ -171,5 +171,39 @@ describe('useMutation', () => {
 
         await waitFor(() => expect(second.result.current.data).toEqual({ id: 'u2' }));
         expect(api.calls('GET', '/me')).toHaveLength(2);
+    });
+
+    it('marks what it names stale and asks again only when it is next read', async () => {
+        const api = seeded();
+        const page = await mounted();
+
+        act(() => markStale(noteRoutes.list));
+
+        expect(page.result.current.list).toMatchObject({ loading: false, data: [note('n1')] });
+        expect(api.calls('GET', '/notebooks/nb1/notes')).toHaveLength(1);
+
+        page.unmount();
+        renderHook(() => ({
+            list: useQuery(noteRoutes.list, { path: notebook }),
+            me: useQuery(noteRoutes.me)
+        }));
+
+        await waitFor(() => expect(api.calls('GET', '/notebooks/nb1/notes')).toHaveLength(2));
+        expect(api.calls('GET', '/notebooks/nb2/notes')).toHaveLength(1);
+        expect(api.calls('GET', '/me')).toHaveLength(1);
+    });
+
+    it('marks every query stale when it names nothing, and asks for none of them', async () => {
+        const api = seeded();
+        const page = await mounted();
+
+        act(() => markStale());
+        expect(api.sent).toHaveLength(5);
+
+        page.unmount();
+        await mounted();
+
+        expect(api.calls('GET', '/me')).toHaveLength(2);
+        expect(api.calls('GET', '/notebooks/nb2/notes')).toHaveLength(2);
     });
 });
