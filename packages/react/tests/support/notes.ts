@@ -25,6 +25,7 @@ export const noteRoutes = {
     remove: del('/notebooks/:notebookId/notes/:noteId'),
     archive: post<void, Note>('/notebooks/:notebookId/notes/:noteId/archive'),
     notebooks: get<{ id: string }[]>('/notebooks'),
+    search: post<{ text: string }, Note[]>('/notes/search'),
     me: get<{ id: string }>('/me')
 };
 

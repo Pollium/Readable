@@ -132,6 +132,20 @@ describe('useQuery', () => {
         await waitFor(() => expect(result.current.data).toEqual([]));
     });
 
+    it('reads an endpoint that takes a body, remembered per body', async () => {
+        const api = fakeApi();
+        api.on('POST', '/notes/search', ({ body }) => ({ body: { data: [note((body as { text: string }).text)] } }));
+
+        const first = renderHook(() => useQuery(noteRoutes.search, { body: { text: 'milk' } }));
+        const same = renderHook(() => useQuery(noteRoutes.search, { body: { text: 'milk' } }));
+        const other = renderHook(() => useQuery(noteRoutes.search, { body: { text: 'eggs' } }));
+
+        await waitFor(() => expect(other.result.current.data).toEqual([note('eggs')]));
+        await waitFor(() => expect(first.result.current.data).toEqual([note('milk')]));
+        expect(same.result.current.data).toEqual([note('milk')]);
+        expect(api.calls('POST', '/notes/search')).toHaveLength(2);
+    });
+
     it('answers from memory for 30 seconds, then asks again', async () => {
         vi.useFakeTimers({ toFake: ['Date'] });
         const api = fakeApi();

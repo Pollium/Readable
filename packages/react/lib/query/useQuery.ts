@@ -1,4 +1,4 @@
-import { isComplete, pathOf, request, searchOf, Target } from '../http/call';
+import { Body, isComplete, pathOf, request, searchOf, Target } from '../http/call';
 import { useSession } from '../session/session';
 import { cache } from './cache';
 import { Endpoint } from '@pollium/readable-contracts/routing';
@@ -23,16 +23,22 @@ export interface QueryOptions<O, T>{
 
 export type Pending = false | null | undefined | '' | 0;
 
+export type QueryTarget<I> = Target & Body<I>;
+
 const headersKey = (headers: Target['headers']): string => headers === undefined
     ? ''
     : ` ${JSON.stringify(Object.entries(headers).sort(([a], [b]) => a.localeCompare(b)))}`;
 
-export const keyOf = (endpoint: Pick<Endpoint, 'method' | 'path'>, { base = '', path, query, headers }: Target): string =>
-    `${endpoint.method} ${base}${pathOf(endpoint.path, path)}${searchOf(query)}${headersKey(headers)}`;
+const bodyKey = (body: unknown): string => body === undefined ? '' : ` ${JSON.stringify(body)}`;
+
+export const keyOf = (
+    endpoint: Pick<Endpoint, 'method' | 'path'>,
+    { base = '', path, query, headers, body }: Target & { body?: unknown }
+): string => `${endpoint.method} ${base}${pathOf(endpoint.path, path)}${searchOf(query)}${headersKey(headers)}${bodyKey(body)}`;
 
 const unsubscribed = () => undefined;
 
-export const prefetch = <O>(endpoint: Endpoint<never, O>, target: Target = {}): Promise<void> => {
+export const prefetch = <I, O>(endpoint: Endpoint<I, O>, target: QueryTarget<I> = {} as QueryTarget<I>): Promise<void> => {
     if(!isComplete(endpoint.path, target.path)) return Promise.resolve();
 
     const key = keyOf(endpoint, target);
@@ -40,9 +46,9 @@ export const prefetch = <O>(endpoint: Endpoint<never, O>, target: Target = {}): 
     return cache.fetch(key);
 };
 
-export const useQuery = <O, T = O>(
-    endpoint: Endpoint<never, O>,
-    target: Target | Pending = {},
+export const useQuery = <I, O, T = O>(
+    endpoint: Endpoint<I, O>,
+    target: QueryTarget<I> | Pending = {} as QueryTarget<I>,
     { select, enabled = true, fresh = false, dependsOn }: QueryOptions<O, T> = {}
 ): Query<T, O> => {
     const upstream = [dependsOn ?? []].flat();
