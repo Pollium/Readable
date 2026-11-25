@@ -18,6 +18,7 @@ export interface FormOptions<I, O>{
     fieldOf?: Readonly<Partial<Record<string, keyof I & string>>>;
     invalidates?: readonly Pick<Endpoint, 'path'>[];
     onDone?: (output: O, values: I) => void;
+    onFail?: (error: Error, values: I) => void;
 }
 
 export interface FieldBinding<V>{
@@ -57,7 +58,7 @@ const without = (errors: Errors, fields: readonly string[]): Errors =>
 
 export const useForm = <I extends object, O>(
     endpoint: Endpoint<I, O>,
-    { initial, path, validate, copy = describeError, fieldOf: fieldsByCode = {}, invalidates, onDone }: FormOptions<I, O>
+    { initial, path, validate, copy = describeError, fieldOf: fieldsByCode = {}, invalidates, onDone, onFail }: FormOptions<I, O>
 ): Form<I> => {
     const [values, setValuesState] = useState<I>(initial);
     const [errors, setErrors] = useState<Errors>({});
@@ -79,7 +80,7 @@ export const useForm = <I extends object, O>(
         setErrors((previous) => found === undefined ? without(previous, [field]) : { ...previous, [field]: found });
     };
 
-    const fail = (cause: unknown) => {
+    const fail = (cause: unknown, input: I) => {
         const error = toError(cause);
         const message = copy(error) ?? error.message;
         const named = error instanceof ApiError ? fieldsByCode[error.code] : undefined;
@@ -90,6 +91,7 @@ export const useForm = <I extends object, O>(
 
         setErrors((previous) => ({ ...previous, ...onFields }));
         if(!Object.keys(onFields).some((field) => field in current.current)) setSubmitError(message);
+        onFail?.(error, input);
     };
 
     const submit = async (input: I) => {
@@ -98,7 +100,7 @@ export const useForm = <I extends object, O>(
             void refreshAfter(endpoint.method, pathOf(endpoint.path, path), invalidates);
             onDone?.(output, input);
         }catch(cause: unknown){
-            fail(cause);
+            fail(cause, input);
         }finally{
             sending.current = false;
             setSubmitting(false);

@@ -88,12 +88,11 @@ class QueryCache{
     }
 
     clear(){
-        for(const [key, entry] of this.#entries){
+        for(const entry of this.#entries.values()){
             entry.run += 1;
             entry.pending = null;
             entry.fetchedAt = 0;
             this.#update(entry, EMPTY);
-            if(entry.listeners.size > 0) void this.fetch(key);
         }
     }
 

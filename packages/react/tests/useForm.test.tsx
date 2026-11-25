@@ -107,6 +107,20 @@ describe('useForm', () => {
         await waitFor(() => expect(above.result.current.submitError).toBe('That notebook is gone'));
     });
 
+    it('tells the app a submit failed, with the values it sent', async () => {
+        const api = fakeApi();
+        api.on('POST', '/notebooks/nb1/notes', { status: 404, body: { error: 'Note::NotFound' } });
+        const onFail = vi.fn();
+        const { result } = creating({ onFail });
+
+        act(() => result.current.field('title').onChange('Groceries'));
+        act(() => result.current.handleSubmit());
+
+        await waitFor(() => expect(onFail).toHaveBeenCalledOnce());
+        expect(onFail.mock.calls[0][0]).toMatchObject({ status: 404, code: 'Note::NotFound' });
+        expect(onFail.mock.calls[0][1]).toEqual({ title: 'Groceries' });
+    });
+
     it('refreshes the list it added to', async () => {
         const api = fakeApi();
         api.on('GET', '/notebooks/nb1/notes', { body: { data: [] } });

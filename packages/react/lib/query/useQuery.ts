@@ -1,4 +1,5 @@
 import { isComplete, pathOf, request, searchOf, Target } from '../http/call';
+import { useSession } from '../session/session';
 import { cache } from './cache';
 import { Endpoint } from '@pollium/readable-contracts/routing';
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
@@ -47,10 +48,11 @@ export const useQuery = <O, T = O>(
         [key]
     );
     const snapshot = useSyncExternalStore(subscribe, () => cache.snapshot(key), () => cache.snapshot(key));
+    const token = useSession();
 
     useEffect(() => {
         if(key !== null) void cache.fetch(key);
-    }, [key]);
+    }, [key, token]);
 
     const data = snapshot.landed ? snapshot.data as O : null;
 
