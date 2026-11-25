@@ -92,6 +92,8 @@ const detail = useQuery(issueRoutes.get, { path: { projectId, issueId } });
 - `set(data)` replaces the answer: a frame from a gateway goes there. `reload` and `set` stay the same
   across renders, so an effect may depend on them.
 - `headers: { 'X-Share-Token': token }` adds headers to a call; a query remembers its answer per headers.
+- `prefetch(endpoint, target)` from `query/useQuery` asks before the page mounts, from a route's loader or
+  a hovered link; the query that mounts later answers from it, or shares it while it is on its way.
 - `call(endpoint, { path, query, body })` from `http/call` is the same request outside React.
 
 ## Mutations

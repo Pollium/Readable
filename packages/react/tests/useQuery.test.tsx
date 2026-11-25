@@ -1,5 +1,5 @@
 import { session, useSession } from '../lib/session/session';
-import { useQuery } from '../lib/query/useQuery';
+import { prefetch, useQuery } from '../lib/query/useQuery';
 import { fakeApi } from './support/fake-api';
 import { Note, noteRoutes } from './support/notes';
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
@@ -26,6 +26,37 @@ describe('useQuery', () => {
 
         await waitFor(() => expect(result.current.loading).toBe(false));
         expect(result.current.data).toBeNull();
+    });
+
+    it('answers from what a route prefetched, without asking again', async () => {
+        const api = fakeApi();
+        api.on('GET', '/notebooks/nb1/notes/n1', { body: { data: note('n1') } });
+
+        await prefetch(noteRoutes.get, { path: { notebookId: 'nb1', noteId: 'n1' } });
+        const { result } = renderHook(() => useQuery(noteRoutes.get, { path: { notebookId: 'nb1', noteId: 'n1' } }));
+
+        expect(result.current).toMatchObject({ loading: false, data: note('n1') });
+        expect(api.calls('GET', '/notebooks/nb1/notes/n1')).toHaveLength(1);
+    });
+
+    it('shares a prefetch still on its way with the query that mounts', async () => {
+        const api = fakeApi();
+        api.on('GET', '/me', { body: { data: { id: 'u1' } } });
+
+        const pending = prefetch(noteRoutes.me);
+        const { result } = renderHook(() => useQuery(noteRoutes.me));
+        await pending;
+
+        await waitFor(() => expect(result.current.data).toEqual({ id: 'u1' }));
+        expect(api.calls('GET', '/me')).toHaveLength(1);
+    });
+
+    it('prefetches nothing while a path param is missing', async () => {
+        const api = fakeApi();
+
+        await prefetch(noteRoutes.get, { path: { notebookId: 'nb1' } });
+
+        expect(api.sent).toHaveLength(0);
     });
 
     it('waits while a path param is missing, then loads', async () => {
