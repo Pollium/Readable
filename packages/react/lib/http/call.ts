@@ -10,6 +10,7 @@ export type PathValues = Readonly<Record<string, string | number | undefined>>;
 export interface Target{
     path?: PathValues;
     query?: object;
+    headers?: Readonly<Record<string, string>>;
 }
 
 type Body<I> = [I] extends [never]
@@ -103,11 +104,11 @@ const send = async (url: string, init: RequestInit): Promise<Response> => {
 };
 
 export const request = async (endpoint: Pick<Endpoint, 'method' | 'path'>, args: CallArgs<unknown> = {}): Promise<unknown> => {
-    const { path, query, body, signal, keepalive } = args;
+    const { path, query, headers, body, signal, keepalive } = args;
     const token = session.token;
     const response = await send(urlOf(endpoint, { path, query }), {
         method: endpoint.method,
-        headers: headersOf(body, token),
+        headers: { ...headersOf(body, token), ...headers },
         body: isJson(body) ? JSON.stringify(body) : body as FormData | undefined,
         signal,
         keepalive

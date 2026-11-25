@@ -18,6 +18,16 @@ describe('useQuery', () => {
         await waitFor(() => expect(result.current).toMatchObject({ loading: false, data: [note('n1')] }));
     });
 
+    it('reads an empty answer as no data, once it has landed', async () => {
+        const api = fakeApi();
+        api.on('GET', '/me', { status: 204 });
+
+        const { result } = renderHook(() => useQuery(noteRoutes.me));
+
+        await waitFor(() => expect(result.current.loading).toBe(false));
+        expect(result.current.data).toBeNull();
+    });
+
     it('waits while a path param is missing, then loads', async () => {
         const api = fakeApi();
         api.on('GET', '/notebooks/nb1/notes/n1', { body: { data: note('n1') } });
@@ -54,6 +64,18 @@ describe('useQuery', () => {
         await waitFor(() => expect(second.result.current.data).toEqual({ id: 'u1' }));
         expect(first.result.current.data).toEqual({ id: 'u1' });
         expect(api.calls('GET', '/me')).toHaveLength(1);
+    });
+
+    it('keeps the answers of different headers apart', async () => {
+        const api = fakeApi();
+        api.on('GET', '/notebooks/nb1/notes', ({ headers }) => ({ body: { data: [note(headers['X-Share-Token'] ?? 'own')] } }));
+        const path = { notebookId: 'nb1' };
+
+        const shared = renderHook(() => useQuery(noteRoutes.list, { path, headers: { 'X-Share-Token': 'share-1' } }));
+        const own = renderHook(() => useQuery(noteRoutes.list, { path }));
+
+        await waitFor(() => expect(shared.result.current.data).toEqual([note('share-1')]));
+        await waitFor(() => expect(own.result.current.data).toEqual([note('own')]));
     });
 
     it('answers from memory for 30 seconds, then asks again', async () => {

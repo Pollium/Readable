@@ -23,8 +23,12 @@ export interface QueryOptions<O, T>{
 
 export type Pending = false | null | undefined | '' | 0;
 
-export const keyOf = (endpoint: Pick<Endpoint, 'method' | 'path'>, { path, query }: Target): string =>
-    `${endpoint.method} ${pathOf(endpoint.path, path)}${searchOf(query)}`;
+const headersKey = (headers: Target['headers']): string => headers === undefined
+    ? ''
+    : ` ${JSON.stringify(Object.entries(headers).sort(([a], [b]) => a.localeCompare(b)))}`;
+
+export const keyOf = (endpoint: Pick<Endpoint, 'method' | 'path'>, { path, query, headers }: Target): string =>
+    `${endpoint.method} ${pathOf(endpoint.path, path)}${searchOf(query)}${headersKey(headers)}`;
 
 const unsubscribed = () => undefined;
 
@@ -64,7 +68,7 @@ export const useQuery = <O, T = O>(
         if(key !== null) cache.set(key, value);
     }, [key]);
 
-    const data = snapshot.landed ? snapshot.data as O : null;
+    const data = snapshot.landed && snapshot.data !== undefined ? snapshot.data as O : null;
 
     return {
         data: data === null ? null : select === undefined ? data as O & T : select(data),

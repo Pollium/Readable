@@ -10,7 +10,10 @@ interface Frame{
     type?: unknown;
     data?: unknown;
     error?: unknown;
+    sessionId?: unknown;
 }
+
+export type ErrorHandler = (error: string, sessionId: string | undefined) => void;
 
 const ENDS_SESSION: number[] = [SocketClose.SessionExpired, SocketClose.AccessRevoked];
 
@@ -30,7 +33,7 @@ export class SocketChannel{
     #closed = false;
     readonly #frames = new Map<string, Set<Handler<unknown>>>();
     readonly #statuses = new Set<Handler<ChannelStatus>>();
-    readonly #errors = new Set<Handler<string>>();
+    readonly #errors = new Set<ErrorHandler>();
 
     constructor(path: string){
         this.#path = path;
@@ -56,8 +59,11 @@ export class SocketChannel{
         return subscribed(this.#statuses, handler);
     }
 
-    onError(handler: Handler<string>): () => void{
-        return subscribed(this.#errors, handler);
+    onError(handler: ErrorHandler): () => void{
+        this.#errors.add(handler);
+        return () => {
+            this.#errors.delete(handler);
+        };
     }
 
     close(){
@@ -113,8 +119,9 @@ export class SocketChannel{
             return;
         }
 
-        const { type, data, error } = frame;
-        if(typeof error === 'string') return this.#errors.forEach((handler) => handler(error));
+        const { type, data, error, sessionId } = frame;
+        const session = typeof sessionId === 'string' ? sessionId : undefined;
+        if(typeof error === 'string') return this.#errors.forEach((handler) => handler(error, session));
         if(typeof type === 'string') this.#frames.get(type)?.forEach((handler) => handler(data));
     }
 

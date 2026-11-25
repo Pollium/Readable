@@ -41,6 +41,20 @@ describe('useChannel', () => {
         expect(result.current.lastError).toBeUndefined();
     });
 
+    it('tells which session an error frame was about', () => {
+        const sockets = fakeSockets();
+        const onError = vi.fn();
+        renderHook(() => useChannel(noteGateway, {}, { onError }));
+
+        act(() => {
+            sockets.last.open();
+            sockets.last.receive({ error: 'Chat::Busy', sessionId: 's1' });
+            sockets.last.receive({ error: 'Gateway::MalformedFrame' });
+        });
+
+        expect(onError.mock.calls).toEqual([['Chat::Busy', 's1'], ['Gateway::MalformedFrame', undefined]]);
+    });
+
     it('joins on every open, again after a reconnect, and when what it joins changes', () => {
         vi.useFakeTimers();
         const sockets = fakeSockets();
