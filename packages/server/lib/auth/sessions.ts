@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { jwtSecret } from '../app/config';
-import { redis } from '../app/redis';
+import { hasRedis, redis } from '../app/redis';
 import { AuthError } from '../app/errors';
 
 export interface Principal{
@@ -57,7 +57,40 @@ export class RedisSessionCutoffStore implements SessionCutoffStore{
     }
 }
 
-export const sessionCutoffs: SessionCutoffStore = new RedisSessionCutoffStore();
+// One process's cuts, for an app without Redis. A cut is kept as long as a session it revokes could
+// still be valid, as in Redis.
+export class MemorySessionCutoffStore implements SessionCutoffStore{
+    #cuts = new Map<string, { at: number; until: number }>();
+
+    async cutoffOf(userId: string): Promise<number | null>{
+        const cut = this.#cuts.get(userId);
+        if(cut === undefined) return null;
+        if(cut.until > Date.now()) return cut.at;
+
+        this.#cuts.delete(userId);
+        return null;
+    }
+
+    async cut(userId: string, at = Math.floor(Date.now() / 1000)){
+        this.#cuts.set(userId, { at, until: Date.now() + SESSION_TTL_SECONDS * 1000 });
+    }
+}
+
+const redisCutoffs = new RedisSessionCutoffStore();
+const memoryCutoffs = new MemorySessionCutoffStore();
+let chosenCutoffs: SessionCutoffStore | undefined;
+
+export const useSessionCutoffs = (store: SessionCutoffStore) => {
+    chosenCutoffs = store;
+};
+
+const cutoffStore = (): SessionCutoffStore => chosenCutoffs ?? (hasRedis() ? redisCutoffs : memoryCutoffs);
+
+// The store verifiedSession reads. It stays one object whichever store answers, so a test spies on it.
+export const sessionCutoffs: SessionCutoffStore = {
+    cutoffOf: (userId) => cutoffStore().cutoffOf(userId),
+    cut: (userId, at) => cutoffStore().cut(userId, at)
+};
 
 const decoded = (token: string): TokenPayload => {
     try{
