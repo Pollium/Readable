@@ -45,11 +45,12 @@ const describing = (codes: Codes): ErrorCopy => {
         if(error === null || error === undefined) return null;
 
         const app = settings().copy;
-        if(error instanceof ApiError && error.isNetworkError) return app === null ? error.message : textOf(app.offline);
-
         const code = baseCodeOf(error.message);
         const copy = codes[code] ?? app?.codes[code];
         if(copy !== undefined) return textOf(copy);
+
+        // A network error is `offline` unless its code is named, as an app may name Network::Timeout.
+        if(error instanceof ApiError && error.isNetworkError) return app === null ? error.message : textOf(app.offline);
         if(app === null) return error.message;
         return typeof app.unknown === 'function' ? app.unknown(code) : app.unknown;
     };
