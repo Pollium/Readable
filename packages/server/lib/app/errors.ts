@@ -36,6 +36,7 @@ export const ConfigError = defineErrors({
     domain: 'Config',
     causes: {
         MissingEnv: 500,
+        MissingPlugin: 500,
         InvalidEnv: 500,
         InvalidEncryptionKey: 500
     }
