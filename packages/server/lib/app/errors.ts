@@ -2,6 +2,7 @@ import {
     RuntimeError,
     defineErrors,
     RequestErrors,
+    RequestProtocolErrors,
     ServerErrors,
     AuthErrors,
     GatewayErrors,
@@ -21,6 +22,7 @@ export class ValidationError extends RuntimeError{
 }
 
 export const RequestError = defineErrors(RequestErrors);
+export const RequestProtocolError = defineErrors(RequestProtocolErrors);
 export const ServerError = defineErrors(ServerErrors);
 export const AuthError = defineErrors(AuthErrors);
 export const GatewayError = defineErrors(GatewayErrors);
