@@ -74,7 +74,7 @@ describe('the transport an app runs on', () => {
 
     const chosenUnder = async (redis: typeof TEST_REDIS | null, databaseUrl: string) => {
         vi.stubEnv('DATABASE_URL', databaseUrl);
-        configure({ name: 'readable', jwtSecret: null, redis: redis as never, storage: null });
+        configure({ name: 'readable', jwtSecret: null, redis, storage: null });
         const chosen = transport();
         await closeTransport();
         vi.unstubAllEnvs();
@@ -103,7 +103,7 @@ describe('the event bus and broadcast over a chosen transport', () => {
     const memory = new MemoryTransport();
 
     it('dispatches an event another instance sent, and its own only once', async () => {
-        configure({ name: 'readable', jwtSecret: null, redis: null as never, storage: null });
+        configure({ name: 'readable', jwtSecret: null, redis: null, storage: null });
         useTransport(memory);
         const handled = vi.fn();
         eventBus.on('test.transport.sent', handled);

@@ -1,10 +1,16 @@
 import { readableConfig } from './config';
+import { ConfigError } from './errors';
 import { Redis, RedisOptions } from 'ioredis';
 
 let client: Redis | undefined;
 
+export const hasRedis = (): boolean => readableConfig().redis !== null;
+
 export const redisOptions = (): RedisOptions => {
-    const { host, port } = readableConfig().redis;
+    const redis = readableConfig().redis;
+    if(redis === null) throw ConfigError.MissingEnv('REDIS_HOST');
+
+    const { host, port } = redis;
     return { host, port };
 };
 
