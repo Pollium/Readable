@@ -1,6 +1,7 @@
 import { ClassMetadata } from '../app/metadata';
 import { HttpMethod, Endpoint } from '@pollium/readable-contracts/routing';
 import { Paginated, RawResponse, RedirectResponse } from './responses';
+import { varyOn } from '../app/compression';
 import { getParamResolvers } from './params';
 import { getMiddleware, getRateLimit } from './middleware';
 import { FastifyReply, FastifyRequest, RouteGenericInterface, FastifyInstance } from 'fastify';
@@ -71,6 +72,16 @@ export const getStatus = (
         .find((binding) => binding.handlerName === handlerName)?.code;
 };
 
+// Vary adds to what CORS and compression already vary on instead of replacing it.
+const sendRaw = (reply: FastifyReply, { body, contentType, headers }: RawResponse) => {
+    for(const [name, value] of Object.entries(headers)){
+        if(name.toLowerCase() === 'vary') varyOn(reply, String(value));
+        else reply.header(name, value);
+    }
+
+    return reply.type(contentType).send(body);
+};
+
 export default abstract class BaseController{
     async register(app: FastifyInstance, prefix: string){
         const routes = routesByController.get(this.constructor);
@@ -116,10 +127,7 @@ export default abstract class BaseController{
             if(reply.sent) return;
 
             if(result instanceof RawResponse){
-                return reply
-                    .status(override ?? result.status)
-                    .type(result.contentType)
-                    .send(result.body);
+                return sendRaw(reply.status(override ?? result.status), result);
             }
 
             if(result instanceof RedirectResponse){
