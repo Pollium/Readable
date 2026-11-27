@@ -1,4 +1,5 @@
 import { ClassMetadata } from '../app/metadata';
+import { streamedBodyOf } from './stream-body';
 import { RequestError, ValidationError } from '../app/errors';
 import { IValidation } from 'typia';
 import { FastifyReply, FastifyRequest } from 'fastify';
@@ -155,8 +156,10 @@ export const parseBody = <T>(validate: BodyValidator<T>, body: unknown): T => {
     throw new ValidationError(errors);
 };
 
+// A route that takes its body as a stream hands it over unread; the validator the Vite plugin
+// writes for a Readable parameter is never run against it.
 export const Body = <T>(validate?: BodyValidator<T>): ParameterDecorator =>
-    createParamDecorator((req) => validate ? parseBody(validate, req.body) : req.body);
+    createParamDecorator((req) => streamedBodyOf(req) ?? (validate ? parseBody(validate, req.body) : req.body));
 
 export const IdParam = (name: string): ParameterDecorator =>
     createParamDecorator((req) => parseId((req.params as Record<string, string>)[name]));

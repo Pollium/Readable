@@ -2,6 +2,7 @@ import { ClassMetadata } from '../app/metadata';
 import { HttpMethod, Endpoint } from '@pollium/readable-contracts/routing';
 import { Paginated, RawResponse, RedirectResponse } from './responses';
 import { varyOn } from '../app/compression';
+import { takeBodyAsStream } from './stream-body';
 import { getParamResolvers } from './params';
 import { getMiddleware, getRateLimit } from './middleware';
 import { FastifyReply, FastifyRequest, RouteGenericInterface, FastifyInstance } from 'fastify';
@@ -12,11 +13,15 @@ export interface RouteDefinition{
     handlerName: string | symbol;
     absolute: boolean;
     bodyLimit?: number;
+    body?: RouteBody;
 }
+
+export type RouteBody = 'stream';
 
 export interface RouteOptions{
     method?: HttpMethod;
     bodyLimit?: number;
+    body?: RouteBody;
 }
 
 export interface StatusBinding{
@@ -48,12 +53,12 @@ export const Route = <I, O>(
     options: HttpMethod | RouteOptions = 'GET'
 ): MethodDecorator => {
     return (target, handlerName) => {
-        const { method = 'GET', bodyLimit } = typeof options === 'string' ? { method: options } : options;
+        const { method = 'GET', bodyLimit, body } = typeof options === 'string' ? { method: options } : options;
         const definition = typeof route === 'string'
             ? { path: route, method, absolute: false }
             : { path: route.path, method: route.method, absolute: true };
 
-        routesByController.append(target.constructor, { ...definition, bodyLimit, handlerName });
+        routesByController.append(target.constructor, { ...definition, bodyLimit, body, handlerName });
     };
 };
 
@@ -100,6 +105,18 @@ export default abstract class BaseController{
     }
 
     #mount(scope: FastifyInstance, route: RouteDefinition){
+        if(route.body !== 'stream'){
+            this.#route(scope, route);
+            return;
+        }
+
+        void scope.register(async (streaming) => {
+            takeBodyAsStream(streaming);
+            this.#route(streaming, route);
+        });
+    }
+
+    #route(scope: FastifyInstance, route: RouteDefinition){
         const middlewares = getMiddleware(this.constructor, route.handlerName);
 
         scope.route({
