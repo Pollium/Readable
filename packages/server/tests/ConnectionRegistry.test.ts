@@ -88,4 +88,43 @@ describe('ConnectionsRegistry', () => {
 
         expect(registry.has('course:a')).toBe(false);
     });
+
+    it('tells whether a socket is in a room and which rooms it is in', () => {
+        const registry = new ConnectionsRegistry();
+        const member = listener();
+        const stranger = listener();
+
+        registry.add(member.socket);
+        registry.add(stranger.socket);
+        registry.join(member.socket, 'team:a');
+        registry.join(member.socket, 'user:a');
+
+        expect(registry.isIn(member.socket, 'team:a')).toBe(true);
+        expect(registry.isIn(stranger.socket, 'team:a')).toBe(false);
+        expect(registry.roomsOf(member.socket)).toEqual(['team:a', 'user:a']);
+        expect(registry.roomsOf(stranger.socket)).toEqual([]);
+    });
+
+    it('sends to a room except one of its members', () => {
+        const registry = new ConnectionsRegistry();
+        const sender = listener();
+        const other = listener();
+
+        registry.add(sender.socket);
+        registry.add(other.socket);
+        registry.join(sender.socket, 'board:a');
+        registry.join(other.socket, 'board:a');
+
+        registry.sendToRoomExcept('board:a', sender.socket, frame('patch'));
+
+        expect(sender.received()).toEqual([]);
+        expect(other.received()).toEqual(['patch']);
+    });
+
+    it('finds no connection for an id it never saw, and sends nothing to it', () => {
+        const registry = new ConnectionsRegistry();
+
+        expect(registry.connection('nobody')).toBeUndefined();
+        expect(registry.sendTo('nobody', frame('lost'))).toBe(false);
+    });
 });

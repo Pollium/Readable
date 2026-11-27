@@ -46,10 +46,15 @@ export const NoteErrors = defineErrors({
 
 export interface NoteFrames{
     'note.changed': Note;
+    'note.watch': Note[];
+    'note.confirm': { question: string };
 }
 
 export interface NoteMessages{
     'note.watch': { notebookId: string };
+    'note.unwatch': { notebookId: string };
+    'note.confirm': { yes: boolean };
+    'note.typing': { noteId: string };
 }
 
 export const noteGateway = gateway<NoteFrames, NoteMessages>('/notes/live');

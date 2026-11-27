@@ -1,168 +1,59 @@
-import { ClassMetadata } from '../app/metadata';
-import ConnectionsRegistry from './ConnectionRegistry';
-import { createParamDecorator, getParamResolvers } from '../http/params';
-import { RuntimeError, GatewayError } from '../app/errors';
-import { getClassMiddleware } from '../http/middleware';
-import { abortScope } from '../app/abort';
-import { SocketClose } from '@pollium/readable-contracts/gateway';
-import { WebsocketPluginOptions, WebSocket } from '@fastify/websocket';
-import { FastifyRequest, FastifyInstance, FastifyReply } from 'fastify';
+import ConnectionsRegistry, { OutboundMessage } from './ConnectionRegistry';
+import { ChannelHost, hostFor, hostsOf, RoomSendOptions } from './ChannelHost';
+import { channelOf } from './bindings';
+import { GatewayError } from '../app/errors';
+import { WebsocketPluginOptions } from '@fastify/websocket';
+import { FastifyInstance } from 'fastify';
 
-interface Frame{
-    type: string;
-    [field: string]: unknown;
-}
-
-interface Binding{
-    event: 'connect' | 'disconnect' | 'message';
-    type?: string;
-    handlerName: string | symbol;
-}
-
-const channels = new WeakMap<object, string>();
-const bindings = new ClassMetadata<Binding>();
-const invocations = new WeakMap<FastifyRequest, { socket: WebSocket; frame: Frame | undefined }>();
-
-export const OnConnect = () => on('connect');
-export const OnDisconnect = () => on('disconnect');
-export const OnMessage = (type: string) => on('message', type);
-export const Payload = (): ParameterDecorator => createParamDecorator((req) => invocations.get(req)?.frame);
-export const Socket = (): ParameterDecorator => createParamDecorator((req) => invocations.get(req)?.socket);
+export {
+    Channel,
+    OnConnect,
+    OnDisconnect,
+    OnMessage,
+    OnShutdown,
+    Payload,
+    Socket,
+    Bytes
+} from './bindings';
+export type { ChannelOptions } from './bindings';
+export { Connection } from './Connection';
+export type { RequestOptions } from './Connection';
+export type { RoomSendOptions } from './ChannelHost';
 
 export const websocketOptions: WebsocketPluginOptions = {
     options: { maxPayload: 1024 * 1024 }
 };
 
-export const Channel = (path: string): ClassDecorator => {
-    return (target) => {
-        channels.set(target, path);
-    };
-};
-
-const on = (event: Binding['event'], type?: string): MethodDecorator => {
-    return (target, handlerName) => {
-        bindings.append(target.constructor, { event, type, handlerName });
-    };
+// Runs every gateway's @OnShutdown() and closes its sockets with 1001; Application.stop() calls it
+// before the server closes, and an app that drives Fastify itself calls it before app.close().
+export const closeGateways = async (app: FastifyInstance) => {
+    await Promise.all(hostsOf(app).map((host) => host.shutdown()));
 };
 
 export default abstract class BaseGateway{
-    protected readonly connections = new ConnectionsRegistry();
+    #connections = new ConnectionsRegistry();
+    #host: ChannelHost | undefined;
 
-    #authorizations = new WeakMap<FastifyRequest, () => Promise<void>>();
+    protected get connections(): ConnectionsRegistry{
+        return this.#connections;
+    }
 
     register(app: FastifyInstance){
-        const path = channels.get(this.constructor);
-        if(!path) throw GatewayError.MissingChannel();
+        const channel = channelOf(this.constructor);
+        if(!channel) throw GatewayError.MissingChannel();
 
-        const guards = getClassMiddleware(this.constructor);
-
-        app.get(path, {
-            websocket: true,
-            preValidation: async (req: FastifyRequest, reply: FastifyReply) => {
-                const authorize = async () => {
-                    for(const guard of guards) await guard(req, reply);
-                };
-                await authorize();
-                this.#authorizations.set(req, authorize);
-            }
-        }, (socket, req) => this.#onConnection(socket, req));
+        const host = hostFor(app, channel.path, this.#connections);
+        host.add(this, channel.options);
+        this.#connections = host.registry;
+        this.#host = host;
     }
 
-    #onConnection(socket: WebSocket, req: FastifyRequest){
-        const disconnected = new AbortController();
-        this.connections.add(socket);
-        const expiry = req.sessionExpiresAt === undefined
-            ? undefined
-            : setTimeout(() => socket.close(SocketClose.SessionExpired, 'session expired'), req.sessionExpiresAt * 1000 - Date.now());
-        const reauthorizing = setInterval(() => {
-            void this.#reauthorize(socket, req);
-        }, 30_000);
+    // Sends to the room's members here and, through broadcast, on every other instance of the app.
+    async toRoom(room: string, message: OutboundMessage<unknown>, options: RoomSendOptions = {}){
+        if(this.#host !== undefined) return this.#host.toRoom(room, message, options);
 
-        this.#runLifecycle('connect', socket, req);
-
-        socket.on('message', (raw: Buffer) => {
-            abortScope.run(disconnected.signal, () => this.#dispatch(socket, req, raw.toString()));
-        });
-
-        socket.on('close', () => {
-            clearTimeout(expiry);
-            clearInterval(reauthorizing);
-            disconnected.abort();
-            this.connections.remove(socket);
-            this.#runLifecycle('disconnect', socket, req);
-        });
-    }
-
-    async #reauthorize(socket: WebSocket, req: FastifyRequest){
-        try{
-            await this.#authorizations.get(req)?.();
-            await this.connections.reauthorize(socket);
-        }catch{
-            socket.close(SocketClose.AccessRevoked, 'access revoked');
-        }
-    }
-
-    #runLifecycle(event: 'connect' | 'disconnect', socket: WebSocket, req: FastifyRequest){
-        for(const binding of bindings.get(this.constructor)){
-            if(binding.event !== event) continue;
-            this.#invoke(binding.handlerName, socket, req, undefined).catch((error: unknown) => this.#fail(socket, error));
-        }
-    }
-
-    async #dispatch(socket: WebSocket, req: FastifyRequest, raw: string){
-        const frame = this.#parseFrame(raw);
-        if(!frame){
-            this.#fail(socket, GatewayError.MalformedFrame());
-            return;
-        }
-
-        const binding = bindings.get(this.constructor).find((candidate) => candidate.event === 'message' && candidate.type === frame.type);
-        if(!binding){
-            this.#fail(socket, GatewayError.UnknownMessageType(), frame);
-            return;
-        }
-
-        try{
-            const result = await this.#invoke(binding.handlerName, socket, req, frame);
-            if(result === undefined || result === null) return;
-
-            socket.send(JSON.stringify({
-                type: frame.type,
-                data: result
-            }));
-        }catch(error){
-            if(abortScope.signal()?.aborted === true) return;
-            this.#fail(socket, error, frame);
-        }
-    }
-
-    #parseFrame(raw: string): Frame | undefined{
-        try{
-            const frame = JSON.parse(raw) as Frame;
-            return typeof frame?.type === 'string' ? frame : undefined;
-        }catch{
-            return undefined;
-        }
-    }
-
-    async #invoke(handlerName: string | symbol, socket: WebSocket, req: FastifyRequest, frame: Frame | undefined): Promise<unknown>{
-        const ctx = Object.create(req) as FastifyRequest;
-        invocations.set(ctx, { socket, frame });
-
-        const resolvers = getParamResolvers(this.constructor, handlerName);
-        const args = await Promise.all(resolvers.map((resolve) => resolve(ctx)));
-        const method = Reflect.get(this, handlerName) as (...args: unknown[]) => unknown;
-
-        return method.apply(this, args);
-    }
-
-    #fail(socket: WebSocket, error: unknown, frame?: Frame){
-        const answer = error instanceof RuntimeError ? error : GatewayError.Internal();
-        const sessionId = frame?.sessionId;
-
-        socket.send(JSON.stringify({
-            error: answer.message,
-            ...(typeof sessionId === 'string' ? { sessionId } : {})
-        }));
+        const { except, bytes } = options;
+        if(except === undefined) this.#connections.sendToRoom(room, message, bytes);
+        else this.#connections.sendToRoomExcept(room, except, message, bytes);
     }
 }
