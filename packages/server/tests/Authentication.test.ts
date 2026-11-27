@@ -208,6 +208,7 @@ describe('the socket guards', () => {
     it('refuse no token, and a bad one', async () => {
         expect((await get('/socket-guard')).json()).toMatchObject({ message: 'Auth::Unauthorized' });
         expect((await get('/socket-guard?token=nope')).json()).toMatchObject({ message: 'Auth::InvalidToken' });
+        expect((await get(`/socket-guard?token=${SECRET_KEY}&token=${SECRET_KEY}`)).json()).toMatchObject({ message: 'Auth::Unauthorized' });
     });
 
     it('let a socket with no token in when optional, and still refuse a bad one', async () => {
