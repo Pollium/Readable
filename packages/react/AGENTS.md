@@ -62,6 +62,7 @@ A page is the default export of an `index.tsx`, and its folder is its path:
 |---|---|
 | `modules/notes/pages/protected/index.tsx` | `/` |
 | `modules/notes/pages/protected/notes/[noteId]/index.tsx` | `/notes/:noteId` |
+| `modules/ai/pages/protected/ai/[[conversationId]]/index.tsx` | `/ai` and `/ai/:conversationId` |
 | `modules/auth/pages/guest/signIn/index.tsx` | `/sign-in` |
 | `modules/notes/pages/protected/notes/layout.tsx` | the frame of `/notes` and of every page below it |
 
@@ -71,7 +72,8 @@ A page is the default export of an `index.tsx`, and its folder is its path:
   for a link the user is about to follow.
 - A layout frames every page of its tier in its folder and the folders below it, from any module. A layout
   in a folder below another sits inside it, and a page is framed by the deepest layout that holds it.
-- Two pages at the same path of a tier stop the app at boot with `Page::DuplicatePath`.
+- Two pages at the same path of a tier stop the app at boot with `Page::DuplicatePath`; a page in an
+  optional folder (`[[name]]`) is at both of its paths, so `ai/index.tsx` beside it is a duplicate.
 
 ## Queries
 
