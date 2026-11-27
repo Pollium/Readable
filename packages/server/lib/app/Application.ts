@@ -3,7 +3,8 @@ import rateLimit from '@fastify/rate-limit';
 import websocket from '@fastify/websocket';
 import BaseGateway, { websocketOptions } from '../gateway/Gateway';
 import BaseQueue from '../queues/BaseQueue';
-import { RuntimeError, ValidationError, RateLimitError, ServerError } from './errors';
+import { ValidationError, RateLimitError } from './errors';
+import { answerOf } from './error-answers';
 import { ApiError } from '@pollium/readable-contracts/http';
 import { LogLevel, logger } from './logger';
 import { broadcast } from '../events/Broadcast';
@@ -127,7 +128,7 @@ export default class Application{
 
     #registerErrorHandler(){
         this.#app.setErrorHandler((err, req, reply) => {
-            const answer = err instanceof RuntimeError ? err : ServerError.Internal();
+            const answer = answerOf(err, this.#options.mapError);
 
             if(answer.statusCode >= 500){
                 logger.error(`${req.method} ${req.url}`, err, { scope: 'http', statusCode: answer.statusCode });

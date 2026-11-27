@@ -5,7 +5,8 @@ import {
     ServerErrors,
     AuthErrors,
     GatewayErrors,
-    RateLimitErrors
+    RateLimitErrors,
+    DatabaseErrors
 } from '@pollium/readable-contracts/errors';
 
 export { RuntimeError, defineErrors };
@@ -24,6 +25,7 @@ export const ServerError = defineErrors(ServerErrors);
 export const AuthError = defineErrors(AuthErrors);
 export const GatewayError = defineErrors(GatewayErrors);
 export const RateLimitError = defineErrors(RateLimitErrors);
+export const DatabaseError = defineErrors(DatabaseErrors);
 
 export const EventError = defineErrors({
     domain: 'Events',

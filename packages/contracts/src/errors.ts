@@ -75,6 +75,17 @@ export const AuthErrors = {
 
 export type AuthErrorCode = ErrorCode<typeof AuthErrors>;
 
+export const DatabaseErrors = {
+    domain: 'Database',
+    causes: {
+        UniqueViolation: 409,
+        ForeignKeyViolation: 409,
+        NotNullViolation: 400
+    }
+} as const satisfies ErrorTable;
+
+export type DatabaseErrorCode = ErrorCode<typeof DatabaseErrors>;
+
 export const ServerErrors = {
     domain: 'Server',
     causes: {
