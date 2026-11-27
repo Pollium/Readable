@@ -1,5 +1,9 @@
 import { PageMeta } from '@pollium/readable-contracts/http';
 import { Page } from './params';
+import { Readable } from 'node:stream';
+
+export type RawBody = string | Buffer | Uint8Array | Readable;
+export type RawHeaders = Record<string, string | number | string[]>;
 
 export class Paginated<T, Extra extends object = Record<never, never>>{
     constructor(
@@ -21,9 +25,10 @@ export class Paginated<T, Extra extends object = Record<never, never>>{
 
 export class RawResponse{
     constructor(
-        readonly body: string | Buffer,
+        readonly body: RawBody,
         readonly contentType: string,
-        readonly status: number = 200
+        readonly status: number = 200,
+        readonly headers: RawHeaders = {}
     ){}
 }
 
