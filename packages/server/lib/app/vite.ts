@@ -18,6 +18,17 @@ export const readableConfig = (overrides: ViteUserConfig = {}, root = process.cw
                 '@tests': join(root, 'tests')
             }
         },
+        // `vite build` makes dist/server.js from src/server.ts, for Node. Dependencies stay imports Node
+        // resolves from node_modules; readable is bundled, since a workspace links it as TypeScript.
+        build: {
+            ssr: join(root, 'src/server.ts'),
+            outDir: join(root, 'dist'),
+            target: 'node22',
+            // Decorator metadata names a parameter's type, and a transform that sees one file at a time
+            // keeps the import of an interface for it. Vitest reads that import as undefined; the
+            // bundler would refuse it, so it reads it the same way.
+            rollupOptions: { shimMissingExports: true }
+        },
         ssr: { noExternal: ['@pollium/readable'] },
         test: {
             include: ['src/**/*.test.ts'],
