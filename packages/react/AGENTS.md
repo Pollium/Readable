@@ -57,10 +57,15 @@ mount({
 
 `mount` answers the router, so the app can wrap `router.navigate`, for view transitions say.
 
-`readableConfig(overrides, { api, root })` from `@pollium/readable-react/app/vite` is the whole Vite
-config: form validation, typia, the `@` alias, `react` deduped, `/api` proxied to `api` with its
-websockets, and tests under `src/**/*.test.{ts,tsx}` in happy-dom with `tests/setup.ts` when it exists.
+`readableConfig(overrides, { api, apiPrefix, proxy, root })` from `@pollium/readable-react/app/vite` is
+the whole Vite config, on Vite 7.3 or 8: form validation, typia, the `@` alias, `react` deduped, `/api`
+proxied to `api` with its websockets, and tests under `src/**/*.test.{ts,tsx}` in happy-dom with
+`tests/setup.ts` when it exists. It does not import Vitest, so a web without tests does not install it.
 The web adds its own plugins, as `readableConfig({ plugins: [react(), tailwindcss()] })`.
+
+- The proxy takes `/api` off, for an api whose routes have no prefix. `apiPrefix: '/api'` is for an api
+  whose routes carry it: the proxy sends `/api/...` as it is, and the web's `apiUrl` is its origin.
+- `proxy: { '/socket.io': { ws: true } }` sends more paths to `api`, with Vite's proxy options.
 
 ## Pages
 
