@@ -1,6 +1,6 @@
-import { useMutation, invalidate } from '../lib/query/useMutation';
+import { useMutation, invalidate, markStale } from '../lib/query/useMutation';
 import { useQuery } from '../lib/query/useQuery';
-import { fakeApi } from './support/fake-api';
+import { Answer, fakeApi } from './support/fake-api';
 import { Note, noteRoutes } from './support/notes';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
@@ -152,5 +152,58 @@ describe('useMutation', () => {
 
         renderHook(() => useQuery(noteRoutes.list, { path: { notebookId: 'nb2' } }));
         await waitFor(() => expect(api.calls('GET', '/notebooks/nb2/notes')).toHaveLength(2));
+    });
+
+    it('asks again on the next mount when an answer on its way left before the change', async () => {
+        const api = fakeApi();
+        let answer = (_value: Answer) => undefined as void;
+        api.on('GET', '/me', () => new Promise<Answer>((resolve) => {
+            answer = resolve;
+        }));
+        const first = renderHook(() => useQuery(noteRoutes.me));
+        first.unmount();
+
+        await act(() => invalidate(noteRoutes.me));
+        api.on('GET', '/me', { body: { data: { id: 'u2' } } });
+        await act(async () => answer({ body: { data: { id: 'u1' } } }));
+
+        const second = renderHook(() => useQuery(noteRoutes.me));
+
+        await waitFor(() => expect(second.result.current.data).toEqual({ id: 'u2' }));
+        expect(api.calls('GET', '/me')).toHaveLength(2);
+    });
+
+    it('marks what it names stale and asks again only when it is next read', async () => {
+        const api = seeded();
+        const page = await mounted();
+
+        act(() => markStale(noteRoutes.list));
+
+        expect(page.result.current.list).toMatchObject({ loading: false, data: [note('n1')] });
+        expect(api.calls('GET', '/notebooks/nb1/notes')).toHaveLength(1);
+
+        page.unmount();
+        renderHook(() => ({
+            list: useQuery(noteRoutes.list, { path: notebook }),
+            me: useQuery(noteRoutes.me)
+        }));
+
+        await waitFor(() => expect(api.calls('GET', '/notebooks/nb1/notes')).toHaveLength(2));
+        expect(api.calls('GET', '/notebooks/nb2/notes')).toHaveLength(1);
+        expect(api.calls('GET', '/me')).toHaveLength(1);
+    });
+
+    it('marks every query stale when it names nothing, and asks for none of them', async () => {
+        const api = seeded();
+        const page = await mounted();
+
+        act(() => markStale());
+        expect(api.sent).toHaveLength(5);
+
+        page.unmount();
+        await mounted();
+
+        expect(api.calls('GET', '/me')).toHaveLength(2);
+        expect(api.calls('GET', '/notebooks/nb2/notes')).toHaveLength(2);
     });
 });

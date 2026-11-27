@@ -54,9 +54,28 @@ describe('useQuery', () => {
     it('prefetches nothing while a path param is missing', async () => {
         const api = fakeApi();
 
-        await prefetch(noteRoutes.get, { path: { notebookId: 'nb1' } });
-
+        expect(await prefetch(noteRoutes.get, { path: { notebookId: 'nb1' } })).toBeNull();
         expect(api.sent).toHaveLength(0);
+    });
+
+    it('answers a prefetch with what it read, so the next one can follow from it', async () => {
+        const api = fakeApi();
+        api.on('GET', '/notebooks', { body: { data: [{ id: 'nb1' }] } });
+        api.on('GET', '/notebooks/nb1/notes', { body: { data: [note('n1')] } });
+
+        const notebooks = await prefetch(noteRoutes.notebooks);
+        const notes = await prefetch(noteRoutes.list, { path: { notebookId: notebooks?.[0]?.id } });
+
+        expect(notes).toEqual([note('n1')]);
+        expect(api.calls('GET', '/notebooks/nb1/notes')).toHaveLength(1);
+    });
+
+    it('answers a prefetch the api refused with null, and throws nothing', async () => {
+        const api = fakeApi();
+        api.on('GET', '/me', { status: 503, body: { error: 'Server::Unavailable' } });
+
+        expect(await prefetch(noteRoutes.me)).toBeNull();
+        expect(api.calls('GET', '/me')).toHaveLength(1);
     });
 
     it('waits while a path param is missing, then loads', async () => {
