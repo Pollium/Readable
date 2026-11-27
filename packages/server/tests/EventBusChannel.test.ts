@@ -2,9 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TEST_REDIS } from './env';
 
 const redis = vi.hoisted(() => ({
+    status: 'ready',
     publish: vi.fn(),
     subscribe: vi.fn(),
     on: vi.fn(),
+    once: vi.fn(),
     quit: vi.fn()
 }));
 
