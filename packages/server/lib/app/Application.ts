@@ -11,6 +11,7 @@ import { registerCompression } from './compression';
 import { eventBus, registerEventGroup } from '../events/EventBus';
 import { Discovered, MountedController } from './discovery';
 import { redis } from './redis';
+import { HttpOptions, applyHttpOptions } from './http-options';
 import Fastify, { LogController, FastifyInstance, FastifyBaseLogger } from 'fastify';
 import { DataSource } from 'typeorm';
 
@@ -23,7 +24,7 @@ export interface ApplicationLog{
     pretty: boolean;
 }
 
-export interface ApplicationOptions{
+export interface ApplicationOptions extends HttpOptions{
     port: number;
     corsOrigins: string[];
     publicPaths?: string[];
@@ -55,6 +56,7 @@ export default class Application{
     }
 
     async build({ queues: startQueues = true }: BuildOptions = {}): Promise<FastifyInstance>{
+        applyHttpOptions(this.#options);
         logger.configure({
             level: this.#options.log.level as LogLevel,
             pretty: this.#options.log.pretty

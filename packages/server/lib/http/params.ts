@@ -49,12 +49,34 @@ export const getParamResolvers = (ctor: object, handlerName: string | symbol): P
     return resolvers;
 };
 
+export interface IdFormat{
+    test(value: string): boolean;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+let ids: IdFormat | undefined;
+
+export const configureIds = (format?: IdFormat) => {
+    ids = format;
+};
+
+const matches = (format: IdFormat, value: string): boolean => {
+    // A RegExp with the g or y flag remembers where its last match ended and would refuse every
+    // other id.
+    if(format instanceof RegExp) format.lastIndex = 0;
+    return format.test(value);
+};
+
 export const parseId = (raw: unknown): string => {
-    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
     if(typeof raw !== 'string') throw RequestError.InvalidId();
+    if(ids !== undefined){
+        if(!matches(ids, raw)) throw RequestError.InvalidId();
+        return raw;
+    }
 
     const value = raw.toLowerCase();
-    if(!uuid.test(value)) throw RequestError.InvalidId();
+    if(!UUID.test(value)) throw RequestError.InvalidId();
     return value;
 };
 
