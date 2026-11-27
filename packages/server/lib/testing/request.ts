@@ -1,4 +1,5 @@
 import { JWTService } from '../auth/sessions';
+import { testTokenFor } from '../auth/authentication';
 import { Endpoint, HttpMethod } from '@pollium/readable-contracts/routing';
 import { FastifyInstance } from 'fastify';
 import { expect } from 'vitest';
@@ -52,7 +53,7 @@ export const request = async <I, O>(
         url: withQuery(withParams(endpoint.path, params), query),
         headers: {
             ...headers,
-            ...(as === undefined ? {} : authHeader(as))
+            ...(as === undefined ? {} : { authorization: `Bearer ${await testTokenFor(as)}` })
         },
         payload: body as object | undefined
     });
