@@ -45,6 +45,7 @@ export const readable = ({
 
     return new Application({
         port: service.port,
+        host: service.host,
         corsOrigins: service.corsOrigins,
         log: service.log,
         discover: () => discoverIn(join(root, 'src'), folders),
