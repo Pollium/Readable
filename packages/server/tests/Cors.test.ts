@@ -2,8 +2,9 @@ import Application from '../lib/app/Application';
 import { ModuleDiscovery } from '../lib/app/discovery';
 import { configure } from '../lib/app/config';
 import { afterAll, describe, expect, it } from 'vitest';
+import { TEST_REDIS } from './env';
 
-configure({ name: 'readable', jwtSecret: null, redis: { host: 'localhost', port: 6379 }, storage: null });
+configure({ name: 'readable', jwtSecret: null, redis: TEST_REDIS, storage: null });
 
 const application = new Application({
     port: 0,

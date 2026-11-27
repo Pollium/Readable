@@ -4,9 +4,10 @@ import { createDataSource } from '../lib/database/data-source';
 import { configure } from '../lib/app/config';
 import { brotliDecompressSync, gunzipSync } from 'node:zlib';
 import { afterAll, describe, expect, it } from 'vitest';
+import { TEST_DATABASE_URL, TEST_REDIS } from './env';
 
-const DATABASE_URL = 'postgres://pollium:pollium@localhost:5432/pollium';
-const REDIS = { host: 'localhost', port: 6379 };
+const DATABASE_URL = TEST_DATABASE_URL;
+const REDIS = TEST_REDIS;
 const COURSES = Array.from({ length: 200 }, (_, index) => ({ id: index, name: `Course ${index}`, subject: 'math' }));
 
 configure({ name: 'readable', jwtSecret: null, redis: REDIS, storage: null });

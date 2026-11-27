@@ -59,9 +59,11 @@
     }
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.1.1",
     "@types/ws": "^8.18.2",
+    "better-sqlite3": "12.11.1",
     "fastify": "^5.12.5",
     "oxlint": "^1.71.0",
     "pg": "^8.23.1",

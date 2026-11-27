@@ -6,6 +6,7 @@ import { JWTService, sessionCutoffs } from '../lib/auth/sessions';
 import { configure } from '../lib/app/config';
 import Fastify from 'fastify';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { TEST_REDIS } from './env';
 
 const MEMBER = 'user-1';
 const STRANGER = 'user-2';
@@ -39,7 +40,7 @@ describe('ParamGuardRoute on its own', () => {
         configure({
             name: 'readable',
             jwtSecret: 'test-jwt-secret',
-            redis: { host: 'localhost', port: 6379 },
+            redis: TEST_REDIS,
             storage: null
         });
     });
