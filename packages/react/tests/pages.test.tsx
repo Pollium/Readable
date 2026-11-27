@@ -1,7 +1,7 @@
 import { prefetchPage } from '../lib/pages/prefetch';
 import { pageOf, pagesOf, routesOf } from '../lib/pages/routes';
 import { render, screen } from '@testing-library/react';
-import { createMemoryRouter, Outlet, RouterProvider } from 'react-router-dom';
+import { createMemoryRouter, Outlet, RouterProvider, useParams } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 
 const page = (text: string) => vi.fn(async () => ({ default: () => <p>{text}</p> }));
@@ -25,6 +25,11 @@ describe('pageOf', () => {
             .toEqual({ tier: 'public', kind: 'layout', path: '/' });
     });
 
+    it('reads a folder in double brackets as an optional param', () => {
+        expect(pageOf('/src/modules/ai/pages/protected/dashboard/ai/[[conversationId]]/index.tsx'))
+            .toEqual({ tier: 'protected', kind: 'page', path: '/dashboard/ai/:conversationId?' });
+    });
+
     it('refuses a file outside a tier', () => {
         expect(() => pageOf('/src/modules/issues/pages/Issue.tsx')).toThrow('Page::InvalidFile:/src/modules/issues/pages/Issue.tsx');
     });
@@ -36,6 +41,41 @@ describe('pagesOf', () => {
             '/src/modules/a/pages/protected/notes/index.tsx': page('a'),
             '/src/modules/b/pages/protected/notes/index.tsx': page('b')
         })).toThrow('Page::DuplicatePath:protected page /notes');
+    });
+
+    it('refuses a page at a path an optional param already answers', () => {
+        expect(() => pagesOf({
+            '/src/modules/ai/pages/protected/ai/index.tsx': page('a'),
+            '/src/modules/ai/pages/protected/ai/[[conversationId]]/index.tsx': page('b')
+        })).toThrow('Page::DuplicatePath:protected page /ai');
+    });
+});
+
+describe('an optional param', () => {
+    const Conversation = () => <p>conversation {useParams().conversationId ?? 'new'}</p>;
+    const files = {
+        '/src/modules/dashboard/pages/protected/dashboard/layout.tsx': frame('dashboard'),
+        '/src/modules/ai/pages/protected/dashboard/ai/[[conversationId]]/index.tsx': vi.fn(async () => ({ default: Conversation }))
+    };
+
+    it('opens its page with the param and without it, in the layout above', async () => {
+        expect(await shown(files, '/dashboard/ai', 'conversation new')).toBe('dashboard conversation new');
+        expect(await shown(files, '/dashboard/ai/c1', 'conversation c1')).toBe('dashboard conversation c1');
+    });
+
+    it('lets prefetchPage find its page from either path', async () => {
+        const chat = vi.fn(async () => ({ default: () => null }));
+        const room = vi.fn(async () => ({ default: () => null }));
+        pagesOf({
+            '/src/modules/chat/pages/protected/chat/[[threadId]]/index.tsx': chat,
+            '/src/modules/rooms/pages/protected/rooms/[[roomId]]/index.tsx': room
+        });
+
+        await prefetchPage('/chat');
+        await prefetchPage('/rooms/r1');
+
+        expect(chat).toHaveBeenCalledOnce();
+        expect(room).toHaveBeenCalledOnce();
     });
 });
 

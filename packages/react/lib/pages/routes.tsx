@@ -36,9 +36,20 @@ const toKebab = (segment: string): string => segment
     .toLowerCase();
 
 const toSegment = (raw: string): string => {
+    const optional = /^\[\[(.+)\]\]$/.exec(raw);
+    if(optional !== null) return `:${optional[1]}?`;
+
     const param = /^\[(.+)\]$/.exec(raw);
     return param === null ? toKebab(raw) : `:${param[1]}`;
 };
+
+// Every path a page answers: one with each optional segment and one without it, so a page at
+// /ai/:conversationId? collides with a page at /ai.
+const answersOf = (path: string): string[] => path.split('/').filter(Boolean)
+    .reduce<string[]>((paths, segment) => segment.endsWith('?')
+        ? paths.flatMap((path) => [path, `${path}/${segment.slice(0, -1)}`])
+        : paths.map((path) => `${path}/${segment}`), [''])
+    .map((path) => path === '' ? '/' : path);
 
 export const pageOf = (file: string): Omit<Page, 'load'> => {
     const match = PAGE_FILE.exec(file);
@@ -58,9 +69,11 @@ export const pagesOf = (files: PageFiles): Page[] => {
 
     const seen = new Set<string>();
     for(const page of pages){
-        const key = `${page.tier} ${page.kind} ${page.path}`;
-        if(seen.has(key)) throw PageErrors.DuplicatePath(key);
-        seen.add(key);
+        for(const path of answersOf(page.path)){
+            const key = `${page.tier} ${page.kind} ${path}`;
+            if(seen.has(key)) throw PageErrors.DuplicatePath(key);
+            seen.add(key);
+        }
         registerLoader(page.path, page.load);
     }
     return pages;
