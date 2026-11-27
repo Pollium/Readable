@@ -3,7 +3,7 @@ import rateLimit from '@fastify/rate-limit';
 import websocket from '@fastify/websocket';
 import BaseGateway, { websocketOptions } from '../gateway/Gateway';
 import BaseQueue from '../queues/BaseQueue';
-import { RuntimeError, ValidationError, RateLimitError, ServerError } from './errors';
+import { RuntimeError, ValidationError, RateLimitError, ServerError, ConfigError } from './errors';
 import { ApiError } from '@pollium/readable-contracts/http';
 import { LogLevel, logger } from './logger';
 import { broadcast } from '../events/Broadcast';
@@ -88,6 +88,7 @@ export default class Application{
         if(this.#options.plugins) await this.#options.plugins(this.#app);
 
         const discovered = await this.#options.discover();
+        if(startQueues) this.#requireRedisFor(discovered.queues);
 
         await this.#openDatabase(discovered.entities);
 
@@ -168,6 +169,11 @@ export default class Application{
         for(const Gateway of gateways){
             new Gateway().register(this.#app);
         }
+    }
+
+    // A queue keeps its jobs in Redis: without it the app would boot and lose every job it was given.
+    #requireRedisFor(queues: Array<new () => BaseQueue<unknown>>){
+        if(queues.length > 0 && !hasRedis()) throw ConfigError.MissingEnv('REDIS_HOST');
     }
 
     #startQueues(queues: Array<new () => BaseQueue<unknown>>){
