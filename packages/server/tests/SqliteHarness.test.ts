@@ -7,7 +7,6 @@ import { BaseModel, Fk } from '../lib/database/models';
 import { createTestApp } from '../lib/testing/harness';
 import { Entity } from 'typeorm';
 import { describe, expect, it } from 'vitest';
-import { TEST_REDIS } from './env';
 import { MEMORY } from './sqlite';
 
 describe('the test harness on SQLite', () => {
@@ -20,7 +19,7 @@ describe('the test harness on SQLite', () => {
         parentId!: string;
     }
 
-    configure({ name: 'readable', jwtSecret: null, redis: TEST_REDIS, storage: null });
+    configure({ name: 'readable', jwtSecret: null, redis: null, storage: null });
 
     it('empties every table before each test, without a schema', async () => {
         const ctx = await createTestApp({

@@ -24,7 +24,7 @@ export interface ReadableDatabaseConfig{
 export interface ReadableConfig{
     name: string;
     jwtSecret: string | null;
-    redis: ReadableRedisConfig;
+    redis: ReadableRedisConfig | null;
     storage: ReadableStorageConfig | null;
 }
 
@@ -81,7 +81,7 @@ export const serviceConfig = (corsFallback: string) => ({
 
 export const redisFromEnv = (): ReadableRedisConfig => ({
     host: requiredEnv('REDIS_HOST'),
-    port: Number(requiredEnv('REDIS_PORT'))
+    port: Number(optionalEnv('REDIS_PORT') ?? 6379)
 });
 
 export const storageFromEnv = (): ReadableStorageConfig => ({

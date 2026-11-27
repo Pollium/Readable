@@ -11,7 +11,7 @@ import { closeTransport } from '../events/transports';
 import { registerCompression } from './compression';
 import { eventBus, registerEventGroup } from '../events/EventBus';
 import { Discovered, MountedController } from './discovery';
-import { redis } from './redis';
+import { hasRedis, redis } from './redis';
 import Fastify, { LogController, FastifyInstance, FastifyBaseLogger } from 'fastify';
 import { DataSource } from 'typeorm';
 
@@ -77,9 +77,10 @@ export default class Application{
                 });
             }
         });
+        // Counted in Redis when the app has it, so every instance shares a limit; in memory otherwise.
         await this.#app.register(rateLimit, {
             global: false,
-            redis,
+            redis: hasRedis() ? redis : undefined,
             nameSpace: 'rl:',
             errorResponseBuilder: () => RateLimitError.TooManyRequests()
         });

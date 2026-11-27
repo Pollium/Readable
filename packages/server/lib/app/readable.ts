@@ -40,7 +40,7 @@ export const readable = ({
     configure({
         name: name ?? scopeOf(root),
         jwtSecret: optionalEnv('JWT_SECRET') ?? null,
-        redis: redisFromEnv(),
+        redis: optionalEnv('REDIS_HOST') === undefined ? null : redisFromEnv(),
         storage: optionalEnv('STORAGE_ENDPOINT') === undefined ? null : storageFromEnv()
     });
 
