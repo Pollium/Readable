@@ -1,4 +1,7 @@
 import { configure, settings } from '../lib/app/config';
+import { call } from '../lib/http/call';
+import { fakeApi } from './support/fake-api';
+import { noteRoutes } from './support/notes';
 import { describe, expect, it } from 'vitest';
 
 describe('configure', () => {
@@ -8,6 +11,26 @@ describe('configure', () => {
 
     it('calls the api under /api of the page when no url is given', () => {
         configure({ name: 'notes', apiUrl: ' ' });
+
+        expect(settings().apiUrl).toBe(`${window.location.origin}/api`);
+    });
+
+    it('reads an api url given as a function on every call', async () => {
+        const api = fakeApi();
+        api.on('GET', '/me', { body: { data: { id: 'u1' } } });
+        let backend = 'http://one.test/';
+        configure({ name: 'notes', apiUrl: () => backend });
+
+        await call(noteRoutes.me);
+        backend = 'http://two.test';
+        await call(noteRoutes.me);
+
+        expect(api.sent.map((sent) => sent.url.origin)).toEqual(['http://one.test', 'http://two.test']);
+        expect(settings().apiUrl).toBe('http://two.test');
+    });
+
+    it('falls back to /api of the page when the function has no url', () => {
+        configure({ name: 'notes', apiUrl: () => null });
 
         expect(settings().apiUrl).toBe(`${window.location.origin}/api`);
     });
