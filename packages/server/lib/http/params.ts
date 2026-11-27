@@ -1,12 +1,17 @@
 import { ClassMetadata } from '../app/metadata';
 import { streamedBodyOf } from './stream-body';
+import { Form, UploadOptions, formOf } from './multipart';
 import { RequestError, ValidationError } from '../app/errors';
 import { IValidation } from 'typia';
 import { FastifyReply, FastifyRequest } from 'fastify';
 
+export type { FormValues, UploadOptions } from './multipart';
+
 export interface UploadedFile{
     filename: string;
     buffer: Buffer;
+    field?: string;
+    mimetype?: string;
 }
 
 export type ParamResolver = (req: FastifyRequest, reply?: FastifyReply) => unknown;
@@ -188,25 +193,39 @@ export const OptionalIdQuery = (name: string): ParameterDecorator =>
 export const Pagination = (options?: PaginationOptions): ParameterDecorator =>
     createParamDecorator((req) => parsePagination(req.query, options));
 
-interface MultipartRequest{
-    file: () => Promise<{ filename: string; toBuffer: () => Promise<Buffer> } | undefined>;
+interface UploadBinding{
+    handlerName: string | symbol;
+    upload: UploadOptions;
 }
 
-export const UploadedFile = (): ParameterDecorator =>
-    createParamDecorator(async (req): Promise<UploadedFile> => {
-        const part = await (req as typeof req & MultipartRequest).file();
-        if(!part) throw RequestError.FileMissing();
+const uploadsByController = new ClassMetadata<UploadBinding>();
 
-        try{
-            const buffer = await part.toBuffer();
-            return {
-                filename: part.filename,
-                buffer
-            };
-        }catch(error){
-            if(error instanceof Error && (error as { code?: string }).code === 'FST_REQ_FILE_TOO_LARGE'){
-                throw RequestError.FileTooLarge();
-            }
-            throw error;
-        }
+const formParam = (
+    target: object,
+    handlerName: string | symbol | undefined,
+    index: number,
+    pick: (form: Form) => unknown
+) => {
+    if(handlerName === undefined) return;
+
+    const uploads = () => uploadsByController
+        .get(target.constructor)
+        .filter((binding) => binding.handlerName === handlerName)
+        .map((binding) => binding.upload);
+    createParamDecorator(async (req) => pick(await formOf(req, uploads())))(target, handlerName, index);
+};
+
+export const UploadedFile = (options: UploadOptions = {}): ParameterDecorator => (target, handlerName, index) => {
+    const upload = { ...options };
+    if(handlerName !== undefined) uploadsByController.append(target.constructor, { handlerName, upload });
+
+    formParam(target, handlerName, index, (form) => {
+        const file = form.files.get(upload);
+        if(file === undefined) throw RequestError.FileMissing();
+        return file;
     });
+};
+
+export const FormFields = (): ParameterDecorator => (target, handlerName, index) => {
+    formParam(target, handlerName, index, (form) => form.fields);
+};

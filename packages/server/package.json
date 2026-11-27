@@ -59,6 +59,7 @@
     }
   },
   "devDependencies": {
+    "@fastify/multipart": "10.1.7",
     "@types/better-sqlite3": "^9.6.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.1.1",
