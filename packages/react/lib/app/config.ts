@@ -5,12 +5,16 @@ export interface WebOptions{
     name: string;
     apiUrl?: string | (() => string | null | undefined);
     copy?: AppCopy;
+    sessionKey?: string;
+    legacyKeys?: readonly string[];
 }
 
 export interface WebSettings{
     name: string;
     readonly apiUrl: string;
     copy: AppCopy | null;
+    sessionKey: string;
+    legacyKeys: readonly string[];
 }
 
 const ConfigErrors = defineErrors({
@@ -25,7 +29,7 @@ let current: WebSettings | null = null;
 const baseOf = (url: string | null | undefined): string =>
     (url?.trim() || `${window.location.origin}/api`).replace(/\/+$/, '');
 
-export const configure = ({ name, apiUrl, copy }: WebOptions) => {
+export const configure = ({ name, apiUrl, copy, sessionKey, legacyKeys = [] }: WebOptions) => {
     // A function is read on every call, so an app can point at another api while it runs.
     const fixed = typeof apiUrl === 'function' ? null : baseOf(apiUrl);
     current = {
@@ -33,7 +37,9 @@ export const configure = ({ name, apiUrl, copy }: WebOptions) => {
         get apiUrl(){
             return fixed ?? baseOf((apiUrl as () => string | null | undefined)());
         },
-        copy: copy ?? null
+        copy: copy ?? null,
+        sessionKey: sessionKey?.trim() || `${name}.session`,
+        legacyKeys
     };
 };
 
