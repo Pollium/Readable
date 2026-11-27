@@ -17,6 +17,7 @@
     "./tsconfig.json": "./tsconfig.app.json",
     "./app/mount": "./lib/app/mount.tsx",
     "./pages/routes": "./lib/pages/routes.tsx",
+    "./pages/guards": "./lib/pages/guards.tsx",
     "./states/QueryState": "./lib/states/QueryState.tsx",
     "./*": "./lib/*.ts"
   },

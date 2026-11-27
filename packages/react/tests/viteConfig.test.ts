@@ -1,6 +1,7 @@
 import { readableConfig } from '../lib/app/vite';
 import manifest from '../package.json' with { type: 'json' };
 import base from '../tsconfig.app.json' with { type: 'json' };
+import { readdirSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -98,6 +99,14 @@ describe('the published package', () => {
         expect(manifest.peerDependencies.vite).toBe('^7.3 || ^8');
         expect(manifest.peerDependenciesMeta.vite.optional).toBe(true);
         expect(manifest.peerDependenciesMeta.vitest.optional).toBe(true);
+    });
+
+    it('lets a web import every module by its path, those with JSX too', () => {
+        const tsx = readdirSync(join(process.cwd(), 'lib'), { recursive: true, encoding: 'utf8' })
+            .filter((file) => file.endsWith('.tsx'))
+            .map((file) => file.replace(/\.tsx$/, ''));
+
+        for(const module of tsx) expect(manifest.exports).toHaveProperty([`./${module}`], `./lib/${module}.tsx`);
     });
 
     it('ships the agent guide beside the code it describes', () => {
