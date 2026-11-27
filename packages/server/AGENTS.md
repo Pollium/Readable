@@ -170,7 +170,7 @@ export default class Note extends BaseModel{
   value. `createdAt` and `updatedAt` are `timestamp`; an app whose tables already hold `timestamptz` passes
   `readable({ timestamptz: true })`, and never drops it.
 
-## Events, queues, gateways
+## Events and queues
 
 ```ts
 declare global{
@@ -202,18 +202,97 @@ export default class DigestQueue extends BaseQueue<{ userId: string }>{
 `new DigestQueue().add(data)` enqueues a job. `concurrency`, `limiter`, `lockDuration` and `jobOptions`
 are protected fields to override. `new QueueProducer(name)` adds jobs to a queue another process works.
 
+## Gateways
+
 ```ts
-@Channel('/notes/live')
+@Channel(noteGateway.channel)
 @Middleware(SocketAuthenticatedRoute)
 export default class NoteGateway extends BaseGateway{
-    @OnMessage('watch')
-    watch(@CurrentUser() userId: string, @Payload() frame: WatchFrame, @Socket() socket: WebSocket){ ... }
+    @OnMessage('note.watch')
+    watch(@CurrentUser() userId: string, @Payload() frame: WatchFrame, @Connection() connection: Connection){ ... }
 }
 ```
 
-A message `{ type, ... }` is answered `{ type, data }` with what its handler returns, or `{ error }`.
-`@OnConnect()` and `@OnDisconnect()` mark the lifecycle handlers. The websocket is registered on its own
-when the app has a gateway.
+The frames, both ways, are JSON text:
+
+| Frame | Is |
+|---|---|
+| `{ type, ...fields }` from a client | a message; answered `{ type, data }` with what its handler returns, nothing when that is `undefined` or `null`, or `{ error, sessionId? }` |
+| `{ type, id, ...fields }` from a client | a request; always answered `{ type, re: id, data }` (`data: null` for nothing) or `{ type, re: id, error, sessionId? }` |
+| `{ type, data }` from the server | a frame for the client's handlers of `type` |
+| `{ type, id, data }` from the server | a request from `connection.request()`; the client answers `{ type, re: id, data }` or `{ type, re: id, error }` |
+
+A message's own fields are never named `type`, `id` or `re`. A binary WebSocket frame carries any of these
+with bytes: `[u32 big-endian header length][UTF-8 JSON header][raw bytes]`, the header being the frame.
+`encodeFrame(header, bytes?)` and `decodeFrame(raw)` from `@pollium/readable-contracts/gateway` read and
+write it; a binary frame that holds only JSON text is read as text.
+
+| Decorator | Gives |
+|---|---|
+| `@Payload()` | the whole frame, or a binary frame's header |
+| `@Bytes()` | a binary frame's bytes, `undefined` for text |
+| `@Connection()` | the connection: `id`, `principal`, `data`, `req`, `socket`, `send`, `request`, `close`, `bufferedAmount`, `drained()` |
+| `@Socket()` | the raw `ws` socket |
+| `@CurrentUser()` | the principal's id, as on a route |
+
+- A handler answers with bytes by returning `binary(data, bytes)`. `connection.send(type, data, bytes?)`
+  sends one frame and says whether the socket was open.
+- `connection.request<T>(type, data, { timeoutMs = 30_000, bytes })` asks the client and resolves with
+  its answer, a `Binary` (`{ data, bytes }`) when the answer has bytes. It rejects with `Gateway::Timeout`,
+  with `Gateway::Closed` when the socket closes first, and with the client's code (status 502) when it
+  refuses. `timeoutMs: 0` waits for as long as the socket lives.
+- `connection.data` is the connection's own object, shared by every gateway on the channel. Type it as
+  `Connection<{ teamId?: string }>`.
+- `this.connections` takes a socket, a connection or a connection id: `join(target, room, access?)`,
+  `leave`, `leaveAll`, `isIn(target, room)`, `roomsOf(target)`, `members(room)` (the connections, with
+  their principal and data), `connection(id)`, `sendTo(target, frame, bytes?)` (`false` when there is no
+  such open connection), `sendToRoom`, `sendToRooms`, `sendToRoomExcept(room, target, frame, bytes?)`,
+  `broadcast` and `has(room)`. These reach this instance's sockets only.
+- `this.toRoom(room, frame, { except, bytes })` sends to the room here and, through `broadcast`, on every
+  other instance of the app. An instance hears other instances' room sends from the first join on its
+  channel.
+- `@OnConnect()` and `@OnDisconnect()` mark the lifecycle handlers. A message waits until every connect
+  handler has finished, so a connect handler may load what the others read from `connection.data`; an
+  answer to a server request never waits.
+- `@OnShutdown()` runs once when the app stops; then every socket is closed with `1001` and given two
+  seconds to go. `Application.stop()` does both; an app that drives Fastify itself calls
+  `closeGateways(app)` before `app.close()`.
+
+Several gateways may name the same channel. They share its sockets and rooms, each takes its own message
+types, every connect and disconnect handler of each runs, and the guards of all of them run once each at
+the upgrade. Two of them taking one message type, or giving one option two values, stop the boot with
+`Gateway::DuplicateMessageType` or `Gateway::ConflictingOptions`.
+
+`@Channel(path, options)`:
+
+| Option | Does |
+|---|---|
+| `maxPayload` | the largest frame a client may send, in bytes; larger closes with `1009`. The websocket's own, 1 MB, otherwise |
+| `compression` | `true` (above 1 KB), `{ threshold }` or `false`: per-message deflate for this channel |
+| `pingIntervalMs` | pings every socket; one that has not answered the last ping is ended |
+| `refusal: 'close'` | a guard's refusal accepts the upgrade and closes at once with `4000 + status` (`4401`, `4403`, ...) and the error code as the reason. Without it the upgrade is answered with the HTTP status, as before |
+
+The websocket is registered on its own when the app has a gateway.
+
+`GatewayClient` from `@pollium/readable/gateway/client` is the client for Node 22 and later (a daemon, a
+worker, another service), on Node's own WebSocket:
+
+```ts
+const client = new GatewayClient('wss://api.example.com/clusters/live', { token, headers: { 'x-cluster': id } });
+client.join('cluster.register', { clusterId });
+client.answer('cluster.command', async (command) => run(command));
+const status = await client.request('cluster.status', { clusterId }, { timeoutMs: 5_000 });
+```
+
+- `token` goes first among `protocols`, where `SocketAuthenticatedRoute` reads it; `headers` go with the
+  upgrade.
+- It reconnects with the browser's backoff, sends its joins on every open before anything else, and
+  queues what it sends while it connects, 256 frames by default (`queueLimit`); `send` answers `false` and
+  `request` rejects `Gateway::QueueFull` past that.
+- `send(type, fields, { bytes, queue })`, `request(type, fields, { bytes, timeoutMs })`,
+  `on(type, (data, bytes) => ...)`, `answer(type, handler)`, `onStatus`, `onError`, `reconnect()`, `close()`.
+- A close with `4401`, or `4403` with an error code, stays closed and hands the code to `onError`;
+  anything else reconnects.
 
 ## Testing
 
@@ -255,6 +334,8 @@ describe('NoteController', () => {
 - **`SyntaxError: Invalid or unexpected token` on a decorator at boot** means Vite is not running readable,
   so discovery handed a TypeScript file to Node. The app's `vite.config.ts` must be `readableConfig()`.
 - **An endpoint's path is absolute.** Only paths a controller writes as strings get the `/<module>` prefix.
+- **A gateway method named `register` or `toRoom` replaces the base class's own**, and the channel is
+  never mounted or never relays. Name handlers after their message.
 - **The Dockerfile copies the api package and the shared contracts, nothing else.** Keep `tsconfig.json`
   extending `@pollium/readable/tsconfig.json`, which comes with `node_modules`, and never a file beside
   the package.
