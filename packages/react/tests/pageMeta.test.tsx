@@ -54,6 +54,14 @@ describe('page meta', () => {
         expect(pageMeta('/nowhere')).toBeUndefined();
     });
 
+    it('finds the meta of a page in an optional folder from either of its paths', () => {
+        const chat = '/src/modules/ai/pages/protected/dashboard/ai/[[conversationId]]/index.tsx';
+        pagesOf({ [chat]: page('chat') }, { [chat]: { title: 'Assistant' } });
+
+        expect(pageMeta('/dashboard/ai')).toEqual({ title: 'Assistant' });
+        expect(pageMeta('/dashboard/ai/c1')).toEqual({ title: 'Assistant' });
+    });
+
     it('gives the open page\'s meta to a frame above it, and follows a navigation', async () => {
         const Title = () => <h1>{usePageMeta()?.title ?? 'untitled'}</h1>;
         const Console = () => <main><Title /><Outlet /></main>;
