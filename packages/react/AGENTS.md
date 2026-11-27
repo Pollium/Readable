@@ -42,6 +42,7 @@ mount({
 | `name` | names the session in `localStorage`: `<name>.session` |
 | `apiUrl` | the api's base url; blank or unset is `<origin>/api` |
 | `pages` | the page files, from `import.meta.glob`; Vite resolves them when it builds |
+| `meta` | every page's meta, from `import.meta.glob(..., { import: 'meta', eager: true })`, below |
 | `layout` | the frame around every protected page, with an `<Outlet />` |
 | `notFound` | the page for a path no page answers; unknown paths go to `home` without it |
 | `signIn`, `home` | where a guest is sent (`/sign-in`), and where a signed-in user is (`/`) |
@@ -68,6 +69,29 @@ A page is the default export of an `index.tsx`, and its folder is its path:
 
 - A guest who opens a protected page is sent to `signIn?next=<where they were going>`, and back there once
   the session starts. A signed-in user on a guest page goes to `next`, or `home`.
+- A page may carry meta: a title, a nav entry, what it needs. The app gives `PageMeta` its shape once, and
+  each page sets it in a `meta.ts` beside its `index.tsx`:
+
+```ts
+// src/app/page-meta.ts
+declare module '@pollium/readable-react/pages/meta'{
+    interface PageMeta{ title?: string; nav?: 'main' | 'settings'; permissions?: Permission[] }
+}
+
+// src/modules/keys/pages/protected/dashboard/keys/meta.ts
+import { PageMeta } from '@pollium/readable-react/pages/meta';
+
+export const meta: PageMeta = { title: 'Secret keys', nav: 'settings', permissions: ['team-secret-key:read'] };
+
+// src/main.tsx
+mount({ ..., meta: import.meta.glob('/src/modules/*/pages/**/meta.ts', { import: 'meta', eager: true }) });
+```
+
+- `pageList()` from `pages/meta` lists every page as `{ tier, path, meta }`, for a nav, without loading
+  any of them; `pageMeta(path)` is the meta of the page a path opens; `usePageMeta()` is the open page's,
+  in the page and in every frame above it.
+- `export const meta` in the `index.tsx` itself works too, and the glob is then of the `index.tsx` files,
+  but Vite then puts every page in the first bundle: a module imported eagerly is never split out.
 - Every page loads when it is first opened. `prefetchPage(path)` from `pages/prefetch` loads it before,
   for a link the user is about to follow.
 - A layout frames every page of its tier in its folder and the folders below it, from any module. A layout

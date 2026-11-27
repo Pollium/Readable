@@ -1,4 +1,5 @@
 import { configure, WebOptions } from './config';
+import { MetaFiles } from '../pages/meta';
 import { PageFiles, pagesOf, PageTier, routesOf } from '../pages/routes';
 import { useSession } from '../session/session';
 import { ComponentType, ReactNode, StrictMode } from 'react';
@@ -7,6 +8,7 @@ import { createBrowserRouter, Navigate, Outlet, RouteObject, RouterProvider, use
 
 export interface RouteOptions{
     pages: PageFiles;
+    meta?: MetaFiles;
     layout?: ComponentType;
     notFound?: ComponentType;
     signIn?: string;
@@ -37,8 +39,8 @@ const SignedIn = ({ signIn }: { signIn: string }) => {
     return <Navigate to={next === '/' ? signIn : `${signIn}?next=${encodeURIComponent(next)}`} replace />;
 };
 
-export const appRoutes = ({ pages, layout: Layout, notFound: NotFound, signIn = '/sign-in', home = '/' }: RouteOptions): RouteObject[] => {
-    const found = pagesOf(pages);
+export const appRoutes = ({ pages, meta, layout: Layout, notFound: NotFound, signIn = '/sign-in', home = '/' }: RouteOptions): RouteObject[] => {
+    const found = pagesOf(pages, meta);
     const tier = (name: PageTier) => routesOf(found.filter((page) => page.tier === name));
     const signedIn = tier('protected');
 
