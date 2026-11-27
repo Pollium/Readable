@@ -1,3 +1,4 @@
+import { listPages, MetaFiles, metaOf, PageMeta } from './meta';
 import { registerLoader } from './prefetch';
 import { defineErrors } from '@pollium/readable-contracts/errors';
 import { ComponentType, lazy, ReactElement, Suspense } from 'react';
@@ -18,6 +19,7 @@ export interface Page{
     kind: PageKind;
     path: string;
     load: () => Promise<PageModule>;
+    meta?: PageMeta;
 }
 
 const PageErrors = defineErrors({
@@ -64,8 +66,11 @@ export const pageOf = (file: string): Omit<Page, 'load'> => {
     };
 };
 
-export const pagesOf = (files: PageFiles): Page[] => {
-    const pages = Object.entries(files).map(([file, load]) => ({ ...pageOf(file), load: load as Page['load'] }));
+export const pagesOf = (files: PageFiles, meta?: MetaFiles): Page[] => {
+    const pages = Object.entries(files).map(([file, load]): Page => {
+        const page = pageOf(file);
+        return { ...page, load: load as Page['load'], meta: page.kind === 'page' ? metaOf(file, meta) : undefined };
+    });
 
     const seen = new Set<string>();
     for(const page of pages){
@@ -76,6 +81,7 @@ export const pagesOf = (files: PageFiles): Page[] => {
         }
         registerLoader(page.path, page.load);
     }
+    listPages(pages.filter((page) => page.kind === 'page').map(({ tier, path, meta }) => ({ tier, path, meta })));
     return pages;
 };
 
@@ -96,11 +102,10 @@ const holds = (folder: string, path: string): boolean =>
 const relative = (path: string, parent: string | null): string =>
     parent === null || parent === '/' ? path.replace(/^\//, '') : path.slice(parent.length + 1);
 
-const routeOf = (page: Page, parent: string | null): RouteObject => {
-    const path = relative(page.path, parent);
-    return path === ''
-        ? { index: true, element: lazyElement(page.load) }
-        : { path, element: lazyElement(page.load) };
+const routeOf = ({ tier, path, load, meta }: Page, parent: string | null): RouteObject => {
+    const route = { element: lazyElement(load), handle: { page: { tier, path, meta } } };
+    const at = relative(path, parent);
+    return at === '' ? { index: true, ...route } : { path: at, ...route };
 };
 
 // A layout frames every page in its folder and below it. When layouts sit inside each other, a page is
