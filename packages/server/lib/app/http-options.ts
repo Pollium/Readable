@@ -11,6 +11,7 @@ export type FastifyOptions = Omit<FastifyHttpOptions<Server>, 'logger' | 'logger
 export interface HttpOptions{
     host?: string;
     fastify?: FastifyOptions;
+    exposedHeaders?: string[];
     ids?: IdFormat;
     authenticate?: Authenticate;
     signTestToken?: SignTestToken;

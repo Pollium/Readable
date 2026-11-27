@@ -74,9 +74,10 @@ export default class Application{
                 const open = this.#options.publicPaths?.some((path) => req.url.startsWith(path)) ?? false;
 
                 resolve(null, {
-                    origin: open ? true : this.#options.corsOrigins,
+                    origin: open || this.#options.corsOrigins.includes('*') ? true : this.#options.corsOrigins,
                     credentials: !open,
-                    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE']
+                    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'],
+                    ...(this.#options.exposedHeaders === undefined ? {} : { exposedHeaders: this.#options.exposedHeaders })
                 });
             }
         });
