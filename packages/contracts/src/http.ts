@@ -1,6 +1,7 @@
 export interface PageQuery{
     limit?: number;
     offset?: number;
+    page?: number;
 }
 
 type NoExtra = Record<never, never>;
