@@ -1,6 +1,8 @@
+import { dialectOf } from './dialect';
 import {
     getMetadataArgsStorage,
     Column,
+    ColumnOptions,
     BaseEntity,
     PrimaryColumn,
     CreateDateColumn,
@@ -70,6 +72,12 @@ export const Fk = (entity: string, options: FkOptions = {}): PropertyDecorator =
             referencedColumnName: 'id'
         });
     };
+
+// Read when the decorator runs, which is when the model's file is imported: DATABASE_URL is set by then,
+// and a model never changes dialect while the process lives.
+export const JsonColumn = (options: Omit<ColumnOptions, 'type'> = {}): PropertyDecorator => {
+    return Column({ ...options, type: dialectOf(process.env.DATABASE_URL) === 'sqlite' ? 'simple-json' : 'jsonb' });
+};
 
 export abstract class BaseModel extends BaseEntity{
     @PrimaryColumn({ type: 'uuid', default: () => 'uuidv7()' })
