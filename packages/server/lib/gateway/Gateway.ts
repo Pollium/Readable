@@ -1,5 +1,5 @@
 import ConnectionsRegistry, { OutboundMessage } from './ConnectionRegistry';
-import { ChannelHost, hostFor, RoomSendOptions } from './ChannelHost';
+import { ChannelHost, hostFor, hostsOf, RoomSendOptions } from './ChannelHost';
 import { channelOf } from './bindings';
 import { GatewayError } from '../app/errors';
 import { WebsocketPluginOptions } from '@fastify/websocket';
@@ -10,6 +10,7 @@ export {
     OnConnect,
     OnDisconnect,
     OnMessage,
+    OnShutdown,
     Payload,
     Socket,
     Bytes
@@ -21,6 +22,12 @@ export type { RoomSendOptions } from './ChannelHost';
 
 export const websocketOptions: WebsocketPluginOptions = {
     options: { maxPayload: 1024 * 1024 }
+};
+
+// Runs every gateway's @OnShutdown() and closes its sockets with 1001; Application.stop() calls it
+// before the server closes, and an app that drives Fastify itself calls it before app.close().
+export const closeGateways = async (app: FastifyInstance) => {
+    await Promise.all(hostsOf(app).map((host) => host.shutdown()));
 };
 
 export default abstract class BaseGateway{

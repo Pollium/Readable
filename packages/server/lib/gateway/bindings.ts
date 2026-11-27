@@ -17,7 +17,7 @@ export interface ChannelDeclaration{
 }
 
 export interface Binding{
-    event: 'connect' | 'disconnect' | 'message';
+    event: 'connect' | 'disconnect' | 'message' | 'shutdown';
     type?: string;
     handlerName: string | symbol;
 }
@@ -48,6 +48,7 @@ const on = (event: Binding['event'], type?: string): MethodDecorator => {
 
 export const OnConnect = () => on('connect');
 export const OnDisconnect = () => on('disconnect');
+export const OnShutdown = () => on('shutdown');
 export const OnMessage = (type: string) => on('message', type);
 export const Payload = (): ParameterDecorator => createParamDecorator((req) => invocations.get(req)?.frame);
 export const Socket = (): ParameterDecorator => createParamDecorator((req) => invocations.get(req)?.connection.socket);
