@@ -56,6 +56,13 @@ describe('copyFor', () => {
         expect(describeError(new Error('Billing::Declined'))).toBe('Something went wrong');
     });
 
+    it('describes the codes readable added in 0.5 when the app names them, and as unknown otherwise', () => {
+        configure({ name: 'notes', copy: { ...appCopy, codes: { ...appCopy.codes, 'Database::UniqueViolation': 'That name is taken' } } });
+
+        expect(noteCopy(error('Database::UniqueViolation', 409))).toBe('That name is taken');
+        expect(noteCopy(error('Request::BodyTooLarge', 413))).toBe('Something went wrong');
+    });
+
     it('hands the unknown copy the code it could not name', () => {
         configure({ name: 'notes', copy: { ...appCopy, unknown: (code) => `Something went wrong (${code})` } });
 
