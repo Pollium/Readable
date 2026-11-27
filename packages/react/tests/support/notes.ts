@@ -29,6 +29,7 @@ export const noteRoutes = {
     me: get<{ id: string }>('/me'),
     download: get<void>('/notebooks/:notebookId/export'),
     members: get<{ id: string }[]>('/teams/:teamId/members'),
+    cluster: get<{ status: 'waiting' | 'ready' }>('/cluster'),
     removeMember: del('/teams/:teamId/members/:memberId')
 };
 

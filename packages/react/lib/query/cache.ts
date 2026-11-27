@@ -1,5 +1,12 @@
-import { toError } from '../http/ApiError';
+import { ApiError, toError } from '../http/ApiError';
 import { session } from '../session/session';
+
+export type Retry = number | ((error: Error, attempt: number) => boolean);
+
+export interface Keeping{
+    keepMs?: number;
+    retry?: Retry;
+}
 
 export interface Snapshot{
     data: unknown;
@@ -21,7 +28,8 @@ export interface Saved{
     fetchedAt: number;
 }
 
-interface Entry extends Source{
+interface Entry extends Source, Keeping{
+    read: boolean;
     snapshot: Snapshot;
     fetchedAt: number;
     run: number;
@@ -32,13 +40,48 @@ interface Entry extends Source{
 
 const EMPTY: Snapshot = { data: undefined, error: undefined, fetching: false, landed: false };
 
+const KEEP_MS = 300_000;
+
+// A count retries only what may answer otherwise the next time: no answer at all, or an api that was
+// down, busy or limiting. A function decides for any error.
+const retries = (retry: Retry | undefined, error: Error, attempt: number): boolean => {
+    if(retry === undefined) return false;
+    if(typeof retry === 'function') return retry(error, attempt);
+
+    const transient = error instanceof ApiError
+        && (error.status === 0 || error.status === 408 || error.status === 429 || error.status >= 500);
+    return transient && attempt <= retry;
+};
+
+const delayOf = (attempt: number): number => Math.min(1_000 * 2 ** (attempt - 1), 30_000);
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 class QueryCache{
     readonly #entries = new Map<string, Entry>();
 
-    ensure(key: string, source: Source){
-        if(this.#entries.has(key)) return;
+    // An entry kept by several queries is kept as long as the longest of them asks.
+    ensure(key: string, source: Source, { keepMs, retry }: Keeping = {}){
+        const found = this.#entries.get(key);
+        if(found !== undefined && !this.#expired(found)){
+            if(keepMs !== undefined) found.keepMs = Math.max(found.keepMs ?? 0, keepMs);
+            if(retry !== undefined) found.retry = retry;
+            return;
+        }
+
         this.#sweep();
-        this.#entries.set(key, { ...source, snapshot: EMPTY, fetchedAt: 0, run: 0, pending: null, listeners: new Set(), idleSince: Date.now() });
+        this.#entries.set(key, {
+            ...source,
+            keepMs,
+            retry,
+            read: false,
+            snapshot: EMPTY,
+            fetchedAt: 0,
+            run: 0,
+            pending: null,
+            listeners: new Set(),
+            idleSince: Date.now()
+        });
     }
 
     snapshot(key: string | null): Snapshot{
@@ -48,6 +91,7 @@ class QueryCache{
     subscribe(key: string, listener: () => void): () => void{
         const entry = this.#entries.get(key);
         entry?.listeners.add(listener);
+        if(entry !== undefined) entry.read = true;
         return () => {
             if(entry === undefined) return;
             entry.listeners.delete(listener);
@@ -55,15 +99,15 @@ class QueryCache{
         };
     }
 
-    fetch(key: string, { force = false, maxAge = 30_000 }: { force?: boolean; maxAge?: number } = {}): Promise<void>{
+    fetch(key: string, { force = false, maxAge = 30_000, retry }: { force?: boolean; maxAge?: number; retry?: Retry } = {}): Promise<void>{
         const entry = this.#entries.get(key);
         if(entry === undefined) return Promise.resolve();
         if(!force && entry.pending !== null) return entry.pending;
-        if(!force && Date.now() - entry.fetchedAt < maxAge) return Promise.resolve();
+        if(!force && entry.fetchedAt > 0 && Date.now() - entry.fetchedAt < maxAge) return Promise.resolve();
 
         const run = ++entry.run;
         this.#update(entry, { fetching: true });
-        entry.pending = entry.load().then(
+        entry.pending = this.#load(entry, run, retry ?? entry.retry).then(
             (data) => {
                 if(run !== entry.run) return;
                 entry.fetchedAt = Date.now();
@@ -143,6 +187,23 @@ class QueryCache{
         }
     }
 
+    // Retries wait 1, 2, 4 s and so on, up to 30 s, and stop once a newer run has started.
+    #load(entry: Entry, run: number, retry: Retry | undefined, attempt = 1): Promise<unknown>{
+        return entry.load().catch(async (cause: unknown) => {
+            if(run !== entry.run || !retries(retry, toError(cause), attempt)) throw cause;
+            await wait(delayOf(attempt));
+            if(run !== entry.run) throw cause;
+            return this.#load(entry, run, retry, attempt + 1);
+        });
+    }
+
+    // An answer nobody has read yet, such as a prefetched one, is kept for the default time.
+    #expired(entry: Entry): boolean{
+        const idle = entry.listeners.size === 0 && entry.pending === null;
+        const keep = entry.read ? entry.keepMs ?? KEEP_MS : KEEP_MS;
+        return idle && Date.now() - entry.idleSince >= keep;
+    }
+
     #reset(key: string, entry: Entry){
         entry.run += 1;
         entry.pending = null;
@@ -153,8 +214,7 @@ class QueryCache{
 
     #sweep(){
         for(const [key, entry] of this.#entries){
-            const idle = entry.listeners.size === 0 && entry.pending === null;
-            if(idle && Date.now() - entry.idleSince > 300_000) this.#entries.delete(key);
+            if(this.#expired(entry)) this.#entries.delete(key);
         }
     }
 
