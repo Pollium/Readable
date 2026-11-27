@@ -1,5 +1,6 @@
 import BaseController from '../http/Controller';
 import { verifiedSession, Principal, TokenPayload } from './sessions';
+import { bearerToken, principalOf, signIn, socketToken } from './authentication';
 import { MiddlewareFn, Middleware } from '../http/middleware';
 import { AuthError } from '../app/errors';
 import { principalId } from './params';
@@ -9,25 +10,27 @@ import { FastifyRequest } from 'fastify';
 export type MembershipAssertion = (scopeId: string, userId: string) => Promise<unknown>;
 
 export const bearerSession = async (req: FastifyRequest): Promise<TokenPayload | null> => {
-    const scheme = 'Bearer ';
-    const header = req.headers.authorization;
-    if(!header?.startsWith(scheme)) return null;
+    const token = bearerToken(req);
 
-    return verifiedSession(header.slice(scheme.length).trim());
+    return token === undefined ? null : verifiedSession(token);
 };
 
 export const bearerPrincipal = async (req: FastifyRequest): Promise<Principal | null> => {
-    const session = await bearerSession(req);
+    const token = bearerToken(req);
 
-    return session === null ? null : { userId: session.sub };
+    return token === undefined ? null : principalOf(token, req);
 };
 
 export const AuthenticatedRoute: MiddlewareFn = async (req) => {
-    const session = await bearerSession(req);
-    if(session === null) throw AuthError.Unauthorized();
+    const token = bearerToken(req);
+    if(token === undefined) throw AuthError.Unauthorized();
 
-    req.principal = { userId: session.sub };
-    req.sessionExpiresAt = session.exp;
+    await signIn(req, token);
+};
+
+export const OptionalAuthenticatedRoute: MiddlewareFn = async (req) => {
+    const token = bearerToken(req);
+    if(token !== undefined) await signIn(req, token);
 };
 
 @Middleware(AuthenticatedRoute)
@@ -40,20 +43,13 @@ export const ParamGuardRoute = (param: string, assert: MembershipAssertion): Mid
 };
 
 export const SocketAuthenticatedRoute: MiddlewareFn = async (req) => {
-    const token = tokenFromSubprotocol(req.headers['sec-websocket-protocol']) ?? tokenFromQuery(req.query);
-    if(!token) throw AuthError.Unauthorized();
+    const token = socketToken(req);
+    if(token === undefined) throw AuthError.Unauthorized();
 
-    const session = await verifiedSession(token);
-    req.principal = { userId: session.sub };
-    req.sessionExpiresAt = session.exp;
+    await signIn(req, token);
 };
 
-const tokenFromSubprotocol = (header: string | undefined): string | undefined => {
-    const token = header?.split(',')[0]?.trim();
-    return token || undefined;
-};
-
-const tokenFromQuery = (query: unknown): string | undefined => {
-    const token = (query as { token?: string }).token?.trim();
-    return token || undefined;
+export const SocketOptionalAuthenticatedRoute: MiddlewareFn = async (req) => {
+    const token = socketToken(req);
+    if(token !== undefined) await signIn(req, token);
 };
