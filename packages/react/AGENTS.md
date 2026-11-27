@@ -48,6 +48,8 @@ mount({
 | `notFound` | the page for a path no page answers; unknown paths go to `home` without it |
 | `pending` | what shows while a page or a layout loads, a skeleton; nothing when unset |
 | `signIn`, `home` | where a guest is sent (`/sign-in`), and where a signed-in user is (`/`) |
+| `guards` | the app's own checks of each tier, below |
+| `boot` | runs before the app first draws: an async sign-in, a local stack starting; `booting` shows meanwhile, `pending` when unset |
 | `copy` | the app's error copy, below |
 | `wrap` | providers around the router: `wrap: (app) => <I18nProvider i18n={i18n}>{app}</I18nProvider>` |
 | `root` | the element to render into, `#root` when unset |
@@ -97,6 +99,30 @@ mount({ ..., meta: import.meta.glob('/src/modules/*/pages/**/meta.ts', { import:
   in the page and in every frame above it.
 - `export const meta` in the `index.tsx` itself works too, and the glob is then of the `index.tsx` files,
   but Vite then puts every page in the first bundle: a module imported eagerly is never split out.
+- A tier's `guards` run in order whenever one of its pages opens, and the first that names a path sends the
+  user there. Readable's own check comes first: the protected tier's guards always see a session.
+
+```ts
+mount({
+    ...,
+    guards: {
+        protected: [
+            ({ path }) => !hasTeam() && path !== '/onboarding' ? '/onboarding' : null,
+            async ({ meta }) => await canAll(meta?.permissions) ? null : '/dashboard'
+        ],
+        public: [({ path }) => backend() === null ? '/connect' : null]
+    }
+});
+```
+
+- A guard gets `{ tier, path, search, params, meta, session }`, `meta` being the opening page's, and
+  answers a path, or `null` to let the user through. A guard that answers a promise shows `pending` until
+  it settles; one that fails, or throws, reaches the route's error boundary.
+- A path a guard names for the page the user is already on lets them stay, so `/onboarding` cannot send
+  itself to `/onboarding`.
+- Guards run again on every navigation and when the session changes. `recheckGuards()` from `pages/guards`
+  runs them again when something else they read changes, a team deleted say. A guard may run more than
+  once for one page, so it reads and does not act.
 - Every page loads when it is first opened. `prefetchPage(path)` from `pages/prefetch` loads it before,
   for a link the user is about to follow.
 - A layout frames every page of its tier in its folder and the folders below it, from any module. A layout

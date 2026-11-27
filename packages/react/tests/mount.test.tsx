@@ -1,5 +1,5 @@
 import { settings } from '../lib/app/config';
-import { appRoutes, mount } from '../lib/app/mount';
+import { AppOptions, appRoutes, mount } from '../lib/app/mount';
 import { session } from '../lib/session/session';
 import { act, render, screen } from '@testing-library/react';
 import { ReactElement } from 'react';
@@ -153,5 +153,67 @@ describe('mount', () => {
         router.dispose();
         root.remove();
         history.replaceState(null, '', '/');
+    });
+});
+
+describe('boot', () => {
+    const mounted: (() => void)[] = [];
+
+    const mountAt = (path: string, options: Partial<AppOptions>) => {
+        const root = document.createElement('div');
+        document.body.append(root);
+        history.replaceState(null, '', path);
+        const router = mount({ name: 'board', pages, root, ...options });
+        mounted.push(() => {
+            router.dispose();
+            root.remove();
+        });
+        return router;
+    };
+
+    afterEach(() => {
+        mounted.splice(0).forEach((unmount) => unmount());
+        session.end();
+        history.replaceState(null, '', '/');
+    });
+
+    it('runs before the first render, which waits for it', async () => {
+        let started: () => void = () => undefined;
+        const starting = new Promise<void>((resolve) => {
+            started = resolve;
+        });
+        const guard = vi.fn(() => null);
+        const router = mountAt('/notes/n1', {
+            boot: async () => {
+                await starting;
+                session.start('token-a');
+            },
+            booting: <p>starting the stack</p>,
+            guards: { protected: [guard] }
+        });
+
+        expect(await screen.findByText('starting the stack')).toBeTruthy();
+        expect(guard).not.toHaveBeenCalled();
+
+        await act(async () => started());
+
+        expect(await screen.findByText('one note')).toBeTruthy();
+        expect(router.state.location.pathname).toBe('/notes/n1');
+        expect(screen.queryByText('starting the stack')).toBeNull();
+    });
+
+    it('draws at once after a boot that is done when it returns', async () => {
+        mountAt('/notes/n1', { boot: () => session.start('token-a'), booting: <p>starting the stack</p> });
+
+        expect(await screen.findByText('one note')).toBeTruthy();
+    });
+
+    it('still draws the app after a boot that fails, and reports why', async () => {
+        const reported = vi.fn();
+        vi.stubGlobal('reportError', reported);
+        mountAt('/notes/n1', { boot: () => Promise.reject(new Error('the stack did not start')) });
+
+        expect(await screen.findByText('sign in')).toBeTruthy();
+        expect(reported).toHaveBeenCalledWith(expect.objectContaining({ message: 'the stack did not start' }));
     });
 });
