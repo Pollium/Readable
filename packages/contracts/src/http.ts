@@ -3,20 +3,22 @@ export interface PageQuery{
     offset?: number;
 }
 
-export interface PageMeta{
+type NoExtra = Record<never, never>;
+
+export type PageMeta<Extra extends object = NoExtra> = Extra & {
     total: number;
     limit: number;
     offset: number;
-}
+};
 
-export interface PageOf<T>{
+export interface PageOf<T, Extra extends object = NoExtra>{
     items: T[];
-    meta: PageMeta;
+    meta: PageMeta<Extra>;
 }
 
-export interface ApiResponse<T>{
+export interface ApiResponse<T, Extra extends object = NoExtra>{
     data: T;
-    meta?: PageMeta;
+    meta?: PageMeta<Extra>;
 }
 
 export interface ApiError{

@@ -1,19 +1,21 @@
 import { PageMeta } from '@pollium/readable-contracts/http';
 import { Page } from './params';
 
-export class Paginated<T>{
+export class Paginated<T, Extra extends object = Record<never, never>>{
     constructor(
         readonly items: T[],
         readonly page: Page,
-        readonly total: number
+        readonly total: number,
+        readonly extra?: Extra
     ){}
 
-    get meta(): PageMeta{
+    get meta(): PageMeta<Extra>{
         return {
+            ...this.extra,
             total: this.total,
             limit: this.page.limit,
             offset: this.page.offset
-        };
+        } as PageMeta<Extra>;
     }
 }
 
