@@ -41,6 +41,26 @@ describe('readableConfig', () => {
         expect((proxy as { rewrite: (path: string) => string }).rewrite('/api/notes/live')).toBe('/notes/live');
     });
 
+    it('keeps the prefix when the api\'s routes carry it', () => {
+        const kept = readableConfig({}, { root, api: 'http://localhost:4100', apiPrefix: '/api' }).server?.proxy;
+
+        expect(kept?.['^/api/']).toEqual({ target: 'http://localhost:4100', changeOrigin: true, ws: true });
+        expect(Object.keys(readableConfig({}, { root, apiPrefix: '/v1.0/' }).server?.proxy ?? {})).toEqual(['^/v1\\.0/']);
+    });
+
+    it('sends the other paths it is given to the api as well', () => {
+        const proxy = readableConfig({}, { root, api: 'http://localhost:4100', proxy: { '/socket.io': { ws: true } } }).server?.proxy;
+
+        expect(proxy?.['/socket.io']).toEqual({ target: 'http://localhost:4100', changeOrigin: true, ws: true });
+        expect(proxy).toHaveProperty(['^/api/']);
+    });
+
+    it('keeps the proxies a web adds itself', () => {
+        const proxy = readableConfig({ server: { proxy: { '/storage': { target: 'http://localhost:9000' } } } }, { root }).server?.proxy;
+
+        expect(Object.keys(proxy ?? {})).toEqual(['^/api/', '/storage']);
+    });
+
     it('runs the tests under src in a browser, with the setup when there is one', () => {
         expect(readableConfig({}, { root }).test).toMatchObject({
             environment: 'happy-dom',
@@ -72,6 +92,12 @@ describe('the published package', () => {
         expect(manifest.exports['./tsconfig.json']).toBe('./tsconfig.app.json');
         expect(manifest.publishConfig.exports['./tsconfig.json']).toBe('./tsconfig.app.json');
         expect(base.compilerOptions.paths['@/*']).toEqual(['${configDir}/src/*']);
+    });
+
+    it('works with Vite 7 and 8, and needs Vitest only for tests', () => {
+        expect(manifest.peerDependencies.vite).toBe('^7.3 || ^8');
+        expect(manifest.peerDependenciesMeta.vite.optional).toBe(true);
+        expect(manifest.peerDependenciesMeta.vitest.optional).toBe(true);
     });
 
     it('ships the agent guide beside the code it describes', () => {
