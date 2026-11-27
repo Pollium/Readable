@@ -27,6 +27,17 @@ const parsed = (text: string): unknown => {
 
 const bodyOf = (body: RequestInit['body']): unknown => typeof body === 'string' ? parsed(body) : body;
 
+// As fetch does, an aborted signal rejects the call with its reason.
+const abortable = (signal: AbortSignal | null | undefined, answer: () => Promise<Answer>): Promise<Answer> => {
+    if(!signal) return answer();
+    if(signal.aborted) return Promise.reject(signal.reason);
+
+    return new Promise((resolve, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+        answer().then(resolve, reject);
+    });
+};
+
 export const fakeApi = () => {
     const routes = new Map<string, Handler>();
     const sent: Sent[] = [];
@@ -42,7 +53,7 @@ export const fakeApi = () => {
         sent.push(request);
 
         const handler = routes.get(`${request.method} ${request.url.pathname}`);
-        const { status = 200, body, raw, headers } = handler ? await handler(request) : { status: 404, body: { error: 'Route::NotFound' } } as Answer;
+        const { status = 200, body, raw, headers } = await abortable(init.signal, async () => handler ? handler(request) : { status: 404, body: { error: 'Route::NotFound' } });
         if(status === 204) return new Response(null, { status });
         if(raw !== undefined) return new Response(raw, { status, headers });
         return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...headers } });

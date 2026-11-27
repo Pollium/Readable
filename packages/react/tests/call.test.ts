@@ -1,3 +1,4 @@
+import { configure } from '../lib/app/config';
 import { call } from '../lib/http/call';
 import { ApiError } from '../lib/http/ApiError';
 import { session } from '../lib/session/session';
@@ -6,6 +7,21 @@ import { noteRoutes } from './support/notes';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const note = { id: 'n1', title: 'a' };
+
+const hanging = () => vi.stubGlobal('fetch', (_: string, init: RequestInit) => new Promise((_resolve, reject) => {
+    init.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+}));
+
+const endlessBody = (signals: AbortSignal[] = []) => vi.stubGlobal('fetch', async (_: string, init: RequestInit) => {
+    if(init.signal) signals.push(init.signal);
+    return new Response(new ReadableStream({
+        start(controller){
+            init.signal?.addEventListener('abort', () => controller.error(init.signal?.reason));
+        }
+    }));
+});
+
+const later = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe('call', () => {
     afterEach(() => session.end());
@@ -270,5 +286,82 @@ describe('call', () => {
         };
 
         expect(typed).toBeTypeOf('function');
+    });
+
+    it('gives up on a call that takes longer than the time configured, as a network error', async () => {
+        hanging();
+        configure({ name: 'notes', apiUrl: 'http://api.test', timeoutMs: 20 });
+
+        await expect(call(noteRoutes.me)).rejects.toMatchObject({ status: 0, message: 'Network::Timeout', isNetworkError: true });
+    });
+
+    it('takes the time a call names over the one configured, and 0 as no limit', async () => {
+        const api = fakeApi();
+        api.on('GET', '/me', async () => {
+            await later(40);
+            return { body: { data: { id: 'u1' } } };
+        });
+        configure({ name: 'notes', apiUrl: 'http://api.test', timeoutMs: 10 });
+
+        expect(await call(noteRoutes.me, { timeoutMs: 0 })).toEqual({ id: 'u1' });
+        await expect(call(noteRoutes.me, { timeoutMs: 100 })).resolves.toEqual({ id: 'u1' });
+        await expect(call(noteRoutes.me)).rejects.toThrow('Network::Timeout');
+    });
+
+    it('times the body of the answer too', async () => {
+        endlessBody();
+
+        await expect(call(noteRoutes.me, { timeoutMs: 20 })).rejects.toThrow('Network::Timeout');
+    });
+
+    it('stops timing a response handed back unread once its headers arrive', async () => {
+        const signals: AbortSignal[] = [];
+        endlessBody(signals);
+
+        await call(noteRoutes.me, { as: 'response', timeoutMs: 20 });
+        await later(40);
+
+        expect(signals[0].aborted).toBe(false);
+    });
+
+    it('rejects with the caller\'s own reason when it aborts a timed call', async () => {
+        hanging();
+        const controller = new AbortController();
+
+        const answer = call(noteRoutes.me, { signal: controller.signal, timeoutMs: 1_000 });
+        controller.abort(new Error('left the page'));
+
+        await expect(answer).rejects.toThrow('left the page');
+    });
+
+    it('lets the app change every request before it is sent', async () => {
+        const api = fakeApi();
+        api.on('GET', '/me', { body: { data: { id: 'u1' } } });
+        const urls: string[] = [];
+        configure({
+            name: 'notes',
+            apiUrl: 'http://api.test',
+            onRequest: async (init, url) => {
+                urls.push(url);
+                init.headers['x-trace-id'] = 'trace-1';
+            }
+        });
+        session.start('token-a');
+
+        await call(noteRoutes.me, { query: { full: true } });
+
+        expect(urls).toEqual(['http://api.test/me?full=true']);
+        expect(api.sent[0].headers).toEqual({ Authorization: 'Bearer token-a', 'x-trace-id': 'trace-1' });
+    });
+
+    it('sends the credentials configured, or the ones a call names', async () => {
+        const api = fakeApi();
+        api.on('GET', '/me', { body: { data: { id: 'u1' } } });
+        configure({ name: 'notes', apiUrl: 'http://api.test', credentials: 'include' });
+
+        await call(noteRoutes.me);
+        await call(noteRoutes.me, { credentials: 'omit' });
+
+        expect(api.sent.map((sent) => sent.init.credentials)).toEqual(['include', 'omit']);
     });
 });

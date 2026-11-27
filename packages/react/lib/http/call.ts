@@ -1,6 +1,7 @@
-import { settings } from '../app/config';
+import { OutgoingRequest, settings } from '../app/config';
 import { session } from '../session/session';
 import { ApiError } from './ApiError';
+import { Deadline, deadlineOf } from './deadline';
 import { AuthErrors, baseCodeOf, defineErrors } from '@pollium/readable-contracts/errors';
 import { ApiError as ErrorBody, ApiResponse, PageOf } from '@pollium/readable-contracts/http';
 import { Endpoint } from '@pollium/readable-contracts/routing';
@@ -43,6 +44,8 @@ export type CallArgs<I, A extends AnswerKind = 'json'> = Target & (SentBody<I> |
     contentType?: string;
     signal?: AbortSignal;
     keepalive?: boolean;
+    timeoutMs?: number;
+    credentials?: RequestCredentials;
     as?: A;
 };
 
@@ -149,31 +152,47 @@ const answerOf = async (response: Response, as: AnswerKind): Promise<unknown> =>
         case 'text': return response.text();
         case 'blob': return response.blob();
         case 'arrayBuffer': return response.arrayBuffer();
-        default: return unwrap(await payloadOf(response));
+        default: return unwrap(parsed(await response.text()));
     }
 };
 
-const send = async (url: string, init: RequestInit): Promise<Response> => {
+const failure = (cause: unknown, deadline: Deadline, signal: AbortSignal | undefined): unknown => {
+    if(deadline.expired()) return new ApiError(0, 'Network::Timeout', undefined, { cause });
+    if(signal?.aborted) return cause;
+    return new ApiError(0, 'Network::Unreachable', undefined, { cause });
+};
+
+// The deadline covers the answer's body too, except for a Response handed back unread.
+const answered = async (url: string, init: RequestInit, as: AnswerKind, deadline: Deadline, signal?: AbortSignal) => {
     try{
-        return await fetch(url, init);
+        const response = await fetch(url, init);
+        return { response, answer: response.ok ? await answerOf(response, as) : undefined };
     }catch(cause: unknown){
-        if(init.signal?.aborted) throw cause;
-        throw new ApiError(0, 'Network::Unreachable', undefined, { cause });
+        throw failure(cause, deadline, signal);
+    }finally{
+        deadline.clear();
     }
 };
 
 export const request = async (endpoint: Pick<Endpoint, 'method' | 'path'>, args: CallArgs<unknown, AnswerKind> = {}): Promise<unknown> => {
-    const { base, path, query, headers, body, contentType, signal, keepalive, as = 'json' } = args;
+    const { base, path, query, headers, body, contentType, signal, keepalive, timeoutMs, credentials, as = 'json' } = args;
+    const config = settings();
     const token = session.token;
     const encoding = encodingOf(body, contentType);
-    const response = await send(urlOf(endpoint, { base, path, query }), {
+    const url = urlOf(endpoint, { base, path, query });
+    const init: OutgoingRequest = {
         method: endpoint.method,
         headers: headersOf(encoding, contentType, token, headers),
         body: encoding === 'json' ? JSON.stringify(body) : body as BodyInit | undefined,
+        credentials: credentials ?? config.credentials,
         signal,
         keepalive
-    });
-    if(response.ok) return answerOf(response, as);
+    };
+    if(config.onRequest !== null) await config.onRequest(init, url);
+
+    const deadline = deadlineOf(init.signal ?? undefined, timeoutMs ?? config.timeoutMs);
+    const { response, answer } = await answered(url, { ...init, signal: deadline.signal }, as, deadline, init.signal ?? undefined);
+    if(response.ok) return answer;
 
     const payload = await payloadOf(response);
     const code = (payload as ErrorBody | undefined)?.error ?? response.statusText;
