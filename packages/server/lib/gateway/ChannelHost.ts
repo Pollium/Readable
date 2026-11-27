@@ -35,6 +35,7 @@ interface Handler{
 
 interface Relayed{
     origin: string;
+    path: string;
     room: string;
     message: OutboundMessage<unknown>;
     except?: string;
@@ -56,6 +57,30 @@ const DEFLATE_THRESHOLD_BYTES = 1024;
 const hosts = new WeakMap<object, Map<string, ChannelHost>>();
 const upgrading = new WeakMap<object, ChannelHost>();
 const patched = new WeakSet<WebSocketServer>();
+const relays = new Map<string, Set<ChannelHost>>();
+
+const relayTopic = (): string => `${readableConfig().name}:gateways`;
+
+// Every channel of the app shares one subscription, made once: ioredis fails a subscriber that is
+// asked to subscribe again while it is still connecting. A topic whose hosts have all stopped is
+// subscribed afresh by the next one, and its old handler finds nobody to deliver to.
+const listen = (host: ChannelHost): (() => void) => {
+    const topic = relayTopic();
+    let listeners = relays.get(topic);
+    if(listeners === undefined){
+        const fresh = new Set<ChannelHost>();
+        broadcast.subscribe<Relayed>(topic, (relayed) => fresh.forEach((listener) => listener.relayed(relayed)));
+        relays.set(topic, fresh);
+        listeners = fresh;
+    }
+
+    const joined = listeners;
+    joined.add(host);
+    return () => {
+        joined.delete(host);
+        if(joined.size === 0 && relays.get(topic) === joined) relays.delete(topic);
+    };
+};
 
 const reasonOf = (code: string): string => {
     const bytes = new TextEncoder().encode(code);
@@ -116,6 +141,7 @@ export class ChannelHost{
     readonly #authorizations = new WeakMap<FastifyRequest, () => Promise<void>>();
     readonly #refusals = new WeakMap<FastifyRequest, unknown>();
     readonly #origin = randomUUID();
+    #unlisten: (() => void) | undefined;
     #relaying = false;
     #stopping: Promise<void> | undefined;
 
@@ -163,15 +189,21 @@ export class ChannelHost{
         try{
             const relayed: Relayed = {
                 origin: this.#origin,
+                path: this.#path,
                 room,
                 message,
                 ...(skipped === undefined ? {} : { except: skipped }),
                 ...(bytes === undefined ? {} : { bytes: Buffer.from(bytes).toString('base64') })
             };
-            await broadcast.publish(this.#topic(), relayed);
+            await broadcast.publish(relayTopic(), relayed);
         }catch(error){
             logger.error(`Gateway::RelayFailed:${this.#path}`, error);
         }
+    }
+
+    relayed({ origin, path, room, message, except, bytes }: Relayed){
+        if(path !== this.#path || origin === this.#origin || this.#stopping !== undefined) return;
+        this.#deliver(room, message, except, bytes === undefined ? undefined : Buffer.from(bytes, 'base64'));
     }
 
     shutdown(): Promise<void>{
@@ -359,17 +391,10 @@ export class ChannelHost{
         this.#relaying = true;
 
         try{
-            broadcast.subscribe<Relayed>(this.#topic(), ({ origin, room, message, except, bytes }) => {
-                if(origin === this.#origin || this.#stopping !== undefined) return;
-                this.#deliver(room, message, except, bytes === undefined ? undefined : Buffer.from(bytes, 'base64'));
-            });
+            this.#unlisten = listen(this);
         }catch(error){
             logger.error(`Gateway::RelayFailed:${this.#path}`, error);
         }
-    }
-
-    #topic(): string{
-        return `${readableConfig().name}:gateway:${this.#path}`;
     }
 
     #guards(): MiddlewareFn[]{
@@ -392,6 +417,7 @@ export class ChannelHost{
     }
 
     async #stop(){
+        this.#unlisten?.();
         for(const gateway of this.#gateways){
             for(const binding of bindings.get(gateway.constructor)){
                 if(binding.event !== 'shutdown') continue;
