@@ -26,8 +26,9 @@ src/modules/<module>/
     tests/          *.test.ts
 ```
 
-Discovery imports every `.ts` file in those six folders and takes its default export. Never put a test,
-a helper or a base class in them: it is imported and mounted too.
+Discovery imports every `.ts` and `.js` file in those six folders and takes its default export; a `.d.ts`,
+a `.map` or a `.test.*` file is skipped. Never put a helper or a base class in them: it is imported and
+mounted too.
 
 ```ts
 // src/server.ts
@@ -64,11 +65,33 @@ Options: `name` (instead of the package scope), `folders` (instead of `['modules
 - `transport`: what carries events and `broadcast` (see Events), instead of the one the environment picks.
 - `sessionCutoffs`: a `SessionCutoffStore` (`cutoffOf(userId)`, `cut(userId, at?)`) instead of Redis or
   memory.
+- `modules`: the record `import.meta.glob` returns, instead of reading the folders from disk (see Builds).
 
 `readableConfig(overrides)` is the whole Vite config: body validation, typia, the `@` and `@tests`
-aliases, tests under `src/**/*.test.ts` with `tests/setup.ts` when it exists, and readable itself run
-through Vite so discovery can load TypeScript. Pass only what the app adds, as `readableConfig({ test:
-{ restoreMocks: true } })`.
+aliases, tests under `src/**/*.test.ts` with `tests/setup.ts` when it exists, readable itself run
+through Vite so discovery can load TypeScript, and `vite build` (see Builds). Pass only what the app adds,
+as `readableConfig({ test: { restoreMocks: true } })`.
+
+### Builds
+
+`vite build` makes `dist/server.js` from `src/server.ts`, for Node 22: the app's dependencies stay imports
+Node resolves from `node_modules`, and readable goes into the bundle. A bundle has no module folders to
+read, so its server hands discovery a glob:
+
+```ts
+// src/server.ts
+/// <reference types="vite/client" />
+import 'reflect-metadata';
+import { readable } from '@pollium/readable/app/readable';
+import { listen } from '@pollium/readable/app/Application';
+
+listen(readable({ modules: import.meta.glob('./modules/*/*/*.ts') }));
+```
+
+The glob may be lazy or eager (never with `import:`), and `folders` still says which folders count; keys
+are matched on their end, so `./modules/...`, `../modules/...` and `/src/modules/...` all work. The same
+files load in the same order as from disk. `discoverModules(record, folders)` does it for an app that
+builds its own `Application`. Run the build with `node dist/server.js` from the app's folder.
 
 ## Routes
 
@@ -298,6 +321,9 @@ describe('NoteController', () => {
 
 - **`SyntaxError: Invalid or unexpected token` on a decorator at boot** means Vite is not running readable,
   so discovery handed a TypeScript file to Node. The app's `vite.config.ts` must be `readableConfig()`.
+- **`[MISSING_EXPORT]` or an undefined import in a build** is an interface imported without `import type`.
+  readableConfig shims it for `vite build` as Vitest does; a config of the app's own must set
+  `build.rollupOptions.shimMissingExports`, or the import must say `import type`.
 - **An endpoint's path is absolute.** Only paths a controller writes as strings get the `/<module>` prefix.
 - **The Dockerfile copies the api package and the shared contracts, nothing else.** Keep `tsconfig.json`
   extending `@pollium/readable/tsconfig.json`, which comes with `node_modules`, and never a file beside
