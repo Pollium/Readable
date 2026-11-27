@@ -13,6 +13,7 @@ import { eventBus, registerEventGroup } from '../events/EventBus';
 import { Discovered, MountedController } from './discovery';
 import { redis } from './redis';
 import { HttpOptions, applyHttpOptions } from './http-options';
+import { TRACE_ID_HEADER, registerTracing } from './trace';
 import Fastify, { LogController, FastifyInstance, FastifyBaseLogger } from 'fastify';
 import { DataSource } from 'typeorm';
 
@@ -68,6 +69,7 @@ export default class Application{
             ...this.#options.fastify,
             loggerInstance: logger.raw as FastifyBaseLogger
         });
+        registerTracing(this.#app);
 
         await this.#app.register(cors, {
             delegator: (req, resolve) => {
@@ -77,7 +79,7 @@ export default class Application{
                     origin: open || this.#options.corsOrigins.includes('*') ? true : this.#options.corsOrigins,
                     credentials: !open,
                     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'],
-                    ...(this.#options.exposedHeaders === undefined ? {} : { exposedHeaders: this.#options.exposedHeaders })
+                    exposedHeaders: [TRACE_ID_HEADER, ...this.#options.exposedHeaders ?? []]
                 });
             }
         });
