@@ -43,8 +43,9 @@ listen(readable());
 
 | Variable | Read as |
 |---|---|
-| `PORT`, `DATABASE_URL`, `REDIS_HOST`, `REDIS_PORT` | required |
+| `PORT`, `DATABASE_URL` | required |
 | `DATABASE_URL=sqlite:<path>`, `sqlite::memory:` | SQLite through better-sqlite3, which the app installs; any other URL is Postgres |
+| `REDIS_HOST`, `REDIS_PORT` | Redis, when `REDIS_HOST` is set; the port is `6379` when unset |
 | `DATABASE_SCHEMA` | the Postgres schema, `public` when unset |
 | `DATABASE_SYNCHRONIZE` | `false` turns synchronize off; it is on otherwise |
 | `JWT_SECRET` | needed by anything that signs or verifies a session |
@@ -60,6 +61,9 @@ Options: `name` (instead of the package scope), `folders` (instead of `['modules
   { null: 'ignore', undefined: 'ignore' } }`, on either dialect. Readable's own keys win (`type`, `url`,
   `database`, `entities`, `migrations`, `synchronize`, `schema`), and a `prepareDatabase` runs after
   Readable's own on SQLite. `createDataSource(config, entities, migrations, options)` takes the same.
+- `transport`: what carries events and `broadcast` (see Events), instead of the one the environment picks.
+- `sessionCutoffs`: a `SessionCutoffStore` (`cutoffOf(userId)`, `cut(userId, at?)`) instead of Redis or
+  memory.
 
 `readableConfig(overrides)` is the whole Vite config: body validation, typia, the `@` and `@tests`
 aliases, tests under `src/**/*.test.ts` with `tests/setup.ts` when it exists, and readable itself run
@@ -124,8 +128,8 @@ with a named type: the Vite plugin rewrites exactly that shape into a typia vali
 - `ParamGuardRoute('orgId', assert)` signs the caller in and checks a membership for a route param.
 - `SocketAuthenticatedRoute` is the guard for gateways: it reads the token from the subprotocol or `?token=`.
 - `ServiceKeyRoute(header, key)` lets another service in by a shared key.
-- `@RateLimit({ max, window: '1m' })` caps a route per client in Redis; the next hit is `429
-  RateLimit::TooManyRequests`.
+- `@RateLimit({ max, window: '1m' })` caps a route per client, counted in Redis, or in the process
+  without Redis; the next hit is `429 RateLimit::TooManyRequests`.
 
 ## Errors
 
@@ -209,7 +213,22 @@ export default class NoteEvents{
 }
 ```
 
-Every instance of the app hears every event, through Redis.
+Every instance of the app hears every event, and every `broadcast.subscribe(channel, handler)` hears every
+`broadcast.publish(channel, payload)`, through one transport:
+
+| The app has | Transport |
+|---|---|
+| `REDIS_HOST` | `RedisTransport`: Redis pub/sub |
+| no Redis, a Postgres `DATABASE_URL` | `PostgresTransport`: LISTEN/NOTIFY on one channel, `readable_transport` |
+| neither | `MemoryTransport`: this process only |
+
+`readable({ transport })` or `useTransport(transport)` from `events/transports` replaces it. A transport is
+`{ publish(channel, message), subscribe(channel, onMessage), close() }` over strings and delivers to every
+subscriber, the publisher's own process included. On Postgres a message too big for a notification (over
+`inlineBytes`, 7000) goes to the `readable_transport_spool` table in the app's schema and only its id is
+sent; every instance reads the row, and rows older than `retainMs` (five minutes) are swept every minute.
+A dropped LISTEN connection is opened again. Under Vitest the event bus stays in the process unless the
+test chose a transport; broadcast always uses it.
 
 ```ts
 export default class DigestQueue extends BaseQueue<{ userId: string }>{
@@ -222,6 +241,8 @@ export default class DigestQueue extends BaseQueue<{ userId: string }>{
 
 `new DigestQueue().add(data)` enqueues a job. `concurrency`, `limiter`, `lockDuration` and `jobOptions`
 are protected fields to override. `new QueueProducer(name)` adds jobs to a queue another process works.
+Queues live in Redis: an app that has a queue and no `REDIS_HOST` stops at boot with
+`Config::MissingEnv:REDIS_HOST` (`build({ queues: false })`, as the test harness builds, does not).
 
 ```ts
 @Channel('/notes/live')
@@ -266,11 +287,12 @@ describe('NoteController', () => {
 - `useApp` builds the app once per file, truncates the schema before each test and stubs `BaseQueue.add`.
   On SQLite (`DATABASE_URL: 'sqlite::memory:'`, no `schema`) it deletes every row of every table instead.
 - `request(app, endpoint, { as, body, params, query, headers })` signs the request in as `as`.
-- Limits are counted in Redis: spy on `rateLimitStore.incr` from `@pollium/readable/testing/rate-limit` to
-  let every request in, or to answer one past the limit.
-- Session cutoffs live in Redis: spy on `sessionCutoffs.cutoffOf` and `sessionCutoffs.cut` from
-  `@pollium/readable/auth/sessions` to keep them in memory. Install spies before each test when a suite
-  calls `vi.restoreAllMocks()`.
+- Limits are counted in Redis when the app has it: spy on `rateLimitStore.incr` from
+  `@pollium/readable/testing/rate-limit` to let every request in, or to answer one past the limit. Without
+  Redis they are counted in memory, and `memoryRateLimitStore.incr` is the one to spy on.
+- Session cutoffs live in Redis when the app has it and in memory (`MemorySessionCutoffStore`) otherwise.
+  Spy on `sessionCutoffs.cutoffOf` and `sessionCutoffs.cut` from `@pollium/readable/auth/sessions` to keep
+  a Redis app's in memory. Install spies before each test when a suite calls `vi.restoreAllMocks()`.
 
 ## Things that will otherwise burn an hour
 
