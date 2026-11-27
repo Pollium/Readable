@@ -1,9 +1,11 @@
-import { useMutation, invalidate } from '../lib/query/useMutation';
+import { configure } from '../lib/app/config';
+import { setData } from '../lib/query/data';
+import { MutationCall, useMutation, invalidate } from '../lib/query/useMutation';
 import { useQuery } from '../lib/query/useQuery';
 import { fakeApi } from './support/fake-api';
 import { Note, noteRoutes } from './support/notes';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 const note = (id: string, title = id): Note => ({ id, title });
 
@@ -152,5 +154,94 @@ describe('useMutation', () => {
 
         renderHook(() => useQuery(noteRoutes.list, { path: { notebookId: 'nb2' } }));
         await waitFor(() => expect(api.calls('GET', '/notebooks/nb2/notes')).toHaveLength(2));
+    });
+
+    it('shows an optimistic change before the request leaves, and keeps it when the api takes it', async () => {
+        const api = seeded();
+        const removed = Promise.withResolvers<void>();
+        api.on('DELETE', '/notebooks/nb1/notes/n1', async () => {
+            await removed.promise;
+            return { status: 204 };
+        });
+        const page = await mounted();
+        const { result } = renderHook(() => useMutation(noteRoutes.remove, {
+            path: notebook,
+            optimistic: (_, { path }) => setData(noteRoutes.list, { path: { notebookId: path.notebookId } }, (notes) => notes?.filter(({ id }) => id !== path.noteId))
+        }));
+
+        let running: Promise<void> | undefined;
+        act(() => {
+            running = result.current.run({ path: { noteId: 'n1' } });
+        });
+        expect(page.result.current.list.data).toEqual([]);
+
+        api.on('GET', '/notebooks/nb1/notes', { body: { data: [] } });
+        removed.resolve();
+        await act(() => running);
+
+        await waitFor(() => expect(askedAgain(api, '/notebooks/nb1/notes')).toBe(true));
+        expect(page.result.current.list.data).toEqual([]);
+    });
+
+    it('rolls an optimistic change back when the api refuses it, and refreshes its branch', async () => {
+        const api = seeded();
+        api.on('DELETE', '/notebooks/nb1/notes/n1', { status: 409, body: { error: 'Note::Locked' } });
+        const page = await mounted();
+        const { result } = renderHook(() => useMutation(noteRoutes.remove, {
+            path: { ...notebook, noteId: 'n1' },
+            optimistic: () => setData(noteRoutes.list, { path: notebook }, [])
+        }));
+
+        await act(() => expect(result.current.run()).rejects.toThrow('Note::Locked'));
+
+        expect(page.result.current.list.data).toEqual([note('n1')]);
+        expect(result.current.error?.message).toBe('Note::Locked');
+        await waitFor(() => expect(askedAgain(api, '/notebooks/nb1/notes')).toBe(true));
+    });
+
+    it('hands the optimistic change the input and the filled path', async () => {
+        const api = fakeApi();
+        api.on('PATCH', '/teams/t1/notes/n1', { body: { data: note('n1', 'b') } });
+        configure({ name: 'notes', apiUrl: 'http://api.test', pathDefaults: () => ({ teamId: 't1' }) });
+        const seen: [unknown, MutationCall][] = [];
+        const rename = { ...noteRoutes.update, path: '/teams/:teamId/notes/:noteId' };
+        const { result } = renderHook(() => useMutation(rename, {
+            optimistic: (input, call) => {
+                seen.push([input, call]);
+            }
+        }));
+
+        await act(() => result.current.run({ path: { noteId: 'n1' }, query: { notify: true }, body: { title: 'b' } }));
+
+        expect(seen).toEqual([[{ title: 'b' }, { path: { teamId: 't1', noteId: 'n1' }, query: { notify: true } }]]);
+    });
+
+    it('refreshes nothing more after a failure when the optimistic change has no rollback', async () => {
+        const api = seeded();
+        api.on('DELETE', '/notebooks/nb1/notes/n1', { status: 409, body: { error: 'Note::Locked' } });
+        await mounted();
+        const optimistic = vi.fn();
+        const { result } = renderHook(() => useMutation(noteRoutes.remove, { path: { ...notebook, noteId: 'n1' }, optimistic }));
+
+        await act(() => expect(result.current.run()).rejects.toThrow('Note::Locked'));
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        expect(optimistic).toHaveBeenCalledOnce();
+        expect(askedAgain(api, '/notebooks/nb1/notes')).toBe(false);
+    });
+
+    it('types the input of an optimistic change by the endpoint', () => {
+        const typed = () => {
+            renderHook(() => useMutation(noteRoutes.update, {
+                optimistic: (input) => {
+                    const title: string | undefined = input.title;
+                    // @ts-expect-error a note has no name
+                    void input.name;
+                    return () => void title;
+                }
+            }));
+        };
+
+        expect(typed).toBeTypeOf('function');
     });
 });
