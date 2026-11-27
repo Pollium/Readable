@@ -178,6 +178,16 @@ export const Reply = (): ParameterDecorator => createParamDecorator((_req, reply
 export const Param = (name: string): ParameterDecorator =>
     createParamDecorator((req) => (req.params as Record<string, string>)[name]);
 
+const firstOf = (value: string | string[] | undefined): string | undefined =>
+    Array.isArray(value) ? value[0] : value;
+
+export const Header = (name: string): ParameterDecorator =>
+    createParamDecorator((req) => firstOf(req.headers[name.toLowerCase()]));
+
+export const Ip = (): ParameterDecorator => createParamDecorator((req) => req.ip);
+
+export const UserAgent = (): ParameterDecorator => createParamDecorator((req) => req.headers['user-agent']);
+
 export const Query = (name?: string): ParameterDecorator =>
     createParamDecorator((req) => name === undefined ? req.query : (req.query as Record<string, string>)[name]);
 
