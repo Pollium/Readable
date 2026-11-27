@@ -4,6 +4,7 @@ import { LiveConnection } from './Connection';
 import { GatewayError, RuntimeError } from '../app/errors';
 import { getClassMiddleware, MiddlewareFn } from '../http/middleware';
 import { getParamResolvers } from '../http/params';
+import { logger } from '../app/logger';
 import { abortScope } from '../app/abort';
 import {
     Binary,
@@ -12,6 +13,7 @@ import {
     Frame,
     FrameId,
     isFrameId,
+    refusalCode,
     SocketClose
 } from '@pollium/readable-contracts/gateway';
 import { WebSocket } from '@fastify/websocket';
@@ -31,11 +33,17 @@ interface ServerOptions{
 type WebSocketServer = FastifyInstance['websocketServer'];
 
 const REAUTHORIZE_MS = 30_000;
+const CLOSE_REASON_BYTES = 123;
 const DEFLATE_THRESHOLD_BYTES = 1024;
 
 const hosts = new WeakMap<object, Map<string, ChannelHost>>();
 const upgrading = new WeakMap<object, ChannelHost>();
 const patched = new WeakSet<WebSocketServer>();
+
+const reasonOf = (code: string): string => {
+    const bytes = new TextEncoder().encode(code);
+    return bytes.length <= CLOSE_REASON_BYTES ? code : new TextDecoder().decode(bytes.subarray(0, CLOSE_REASON_BYTES)).replace(/\uFFFD$/, '');
+};
 
 // One ws server serves every route, so a channel's limit and compression are put on it for the
 // length of its own handshake, which ws completes synchronously.
@@ -78,6 +86,7 @@ export class ChannelHost{
     readonly #handlers = new Map<string, Handler>();
     readonly #options: ChannelOptions = {};
     readonly #authorizations = new WeakMap<FastifyRequest, () => Promise<void>>();
+    readonly #refusals = new WeakMap<FastifyRequest, unknown>();
 
     constructor(path: string, registry: ConnectionsRegistry){
         this.#path = path;
@@ -126,11 +135,18 @@ export class ChannelHost{
             for(const guard of guards) await guard(req, reply);
         };
 
-        await authorize();
+        try{
+            await authorize();
+        }catch(error){
+            if(this.#options.refusal !== 'close') throw error;
+            this.#refusals.set(req, error);
+            return;
+        }
         this.#authorizations.set(req, authorize);
     }
 
     #accept(socket: WebSocket, req: FastifyRequest){
+        if(this.#refusals.has(req)) return this.#refuse(socket, this.#refusals.get(req));
 
         const connection = new LiveConnection(socket, req);
         const disconnected = new AbortController();
@@ -149,6 +165,13 @@ export class ChannelHost{
             this.registry.remove(socket);
             void this.#lifecycle('disconnect', connection);
         });
+    }
+
+    #refuse(socket: WebSocket, error: unknown){
+        const refusal = error instanceof RuntimeError ? error : GatewayError.Internal();
+        if(refusal.statusCode >= 500) logger.error(`Gateway::Refused:${this.#path}`, error);
+
+        socket.close(refusalCode(refusal.statusCode), reasonOf(refusal.message));
     }
 
     #watch(connection: LiveConnection): Array<() => void>{
