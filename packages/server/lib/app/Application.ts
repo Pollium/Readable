@@ -1,7 +1,7 @@
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import websocket from '@fastify/websocket';
-import BaseGateway, { websocketOptions } from '../gateway/Gateway';
+import BaseGateway, { closeGateways, websocketOptions } from '../gateway/Gateway';
 import BaseQueue from '../queues/BaseQueue';
 import { ValidationError, RateLimitError, ConfigError } from './errors';
 import { answerOf } from './error-answers';
@@ -118,6 +118,7 @@ export default class Application{
     }
 
     async stop(){
+        await closeGateways(this.#app);
         await this.#app.close();
         await Promise.all(this.#queues.map((queue) => queue.close()));
         await eventBus.close();
