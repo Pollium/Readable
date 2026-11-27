@@ -6,7 +6,7 @@ import {
     serviceConfig,
     storageFromEnv
 } from './config';
-import { discoverIn } from './discovery';
+import { GlobbedModules, discoverIn, discoverModules } from './discovery';
 import { DatabaseOptions, MigrationSource, createDataSource } from '../database/data-source';
 import { SessionCutoffStore, useSessionCutoffs } from '../auth/sessions';
 import { Transport } from '../events/Transport';
@@ -23,6 +23,7 @@ export interface ReadableOptions extends Pick<ApplicationOptions, 'publicPaths' 
     database?: DatabaseOptions;
     sessionCutoffs?: SessionCutoffStore;
     transport?: Transport;
+    modules?: GlobbedModules;
 }
 
 const scopeOf = (root: string): string => {
@@ -40,6 +41,7 @@ export const readable = ({
     database,
     sessionCutoffs,
     transport,
+    modules,
     ...hooks
 }: ReadableOptions = {}): Application => {
     const service = serviceConfig('');
@@ -57,7 +59,7 @@ export const readable = ({
         port: service.port,
         corsOrigins: service.corsOrigins,
         log: service.log,
-        discover: () => discoverIn(join(root, 'src'), folders),
+        discover: () => modules === undefined ? discoverIn(join(root, 'src'), folders) : discoverModules(modules, folders),
         createDataSource: (entities) => createDataSource({ ...service.database, timestamptz }, entities, migrations, database),
         ...hooks
     });
