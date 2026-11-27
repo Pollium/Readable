@@ -26,7 +26,8 @@ export const noteRoutes = {
     archive: post<void, Note>('/notebooks/:notebookId/notes/:noteId/archive'),
     notebooks: get<{ id: string }[]>('/notebooks'),
     search: post<{ text: string }, Note[]>('/notes/search'),
-    me: get<{ id: string }>('/me')
+    me: get<{ id: string }>('/me'),
+    download: get<void>('/notebooks/:notebookId/export')
 };
 
 export const NoteErrors = defineErrors({
