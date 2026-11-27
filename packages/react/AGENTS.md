@@ -44,11 +44,16 @@ mount({
 | `pages` | the page files, from `import.meta.glob`; Vite resolves them when it builds |
 | `meta` | every page's meta, from `import.meta.glob(..., { import: 'meta', eager: true })`, below |
 | `layout` | the frame around every protected page, with an `<Outlet />` |
+| `frame` | the frame around every tier and `notFound`, inside the router: an error boundary, chrome, context menus, the title from `usePageMeta()` |
 | `notFound` | the page for a path no page answers; unknown paths go to `home` without it |
+| `pending` | what shows while a page or a layout loads, a skeleton; nothing when unset |
 | `signIn`, `home` | where a guest is sent (`/sign-in`), and where a signed-in user is (`/`) |
 | `copy` | the app's error copy, below |
 | `wrap` | providers around the router: `wrap: (app) => <I18nProvider i18n={i18n}>{app}</I18nProvider>` |
 | `root` | the element to render into, `#root` when unset |
+| `router` | `createBrowserRouter`'s options (`basename`, ...) and `RouterProvider`'s (`useTransitions`, `onError`) |
+
+`mount` answers the router, so the app can wrap `router.navigate`, for view transitions say.
 
 `readableConfig(overrides, { api, root })` from `@pollium/readable-react/app/vite` is the whole Vite
 config: form validation, typia, the `@` alias, `react` deduped, `/api` proxied to `api` with its
