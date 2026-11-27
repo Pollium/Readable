@@ -66,15 +66,28 @@ const ENDS_SESSION = Object.entries(AuthErrors.causes)
     .filter(([, status]) => status === 401)
     .map(([cause]) => `${AuthErrors.domain}::${cause}`);
 
-export const isComplete = (template: string, values: PathValues = {}): boolean =>
-    [...template.matchAll(PARAM)].every(([, name]) => values[name] !== undefined);
+// A param the call leaves out, or gives as undefined, takes the app's default, such as the team the
+// user has open.
+export const filledPath = (values: PathValues = {}): PathValues => {
+    const defaults = settings().pathDefaults;
+    if(defaults === null) return values;
 
-export const pathOf = (template: string, values: PathValues = {}): string =>
-    template.replace(PARAM, (_, name: string) => {
-        const value = values[name];
+    return { ...defaults(), ...Object.fromEntries(Object.entries(values).filter(([, value]) => value !== undefined)) };
+};
+
+export const isComplete = (template: string, values?: PathValues): boolean => {
+    const filled = filledPath(values);
+    return [...template.matchAll(PARAM)].every(([, name]) => filled[name] !== undefined);
+};
+
+export const pathOf = (template: string, values?: PathValues): string => {
+    const filled = filledPath(values);
+    return template.replace(PARAM, (_, name: string) => {
+        const value = filled[name];
         if(value === undefined) throw CallErrors.MissingPathParam(`${name}@${template}`);
         return encodeURIComponent(value);
     });
+};
 
 const textOf = (value: unknown): string => value instanceof Date ? value.toISOString() : String(value);
 
