@@ -13,8 +13,8 @@ describe('configure', () => {
         expect(settings()).toMatchObject({ sessionKey: 'notes.session', legacyKeys: [] });
     });
 
-    it('times nothing out, changes no request and leaves credentials to the browser by default', () => {
-        expect(settings()).toMatchObject({ timeoutMs: 0, credentials: undefined, onRequest: null });
+    it('times nothing out, changes no request, fills no path and leaves credentials to the browser by default', () => {
+        expect(settings()).toMatchObject({ timeoutMs: 0, credentials: undefined, onRequest: null, pathDefaults: null });
     });
 
     it('calls the api under /api of the page when no url is given', () => {

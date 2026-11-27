@@ -1,4 +1,5 @@
 import { AppCopy } from '../errors/copy';
+import { PathValues } from '../http/call';
 import { defineErrors } from '@pollium/readable-contracts/errors';
 
 export interface OutgoingRequest extends RequestInit{
@@ -17,6 +18,7 @@ export interface WebOptions{
     timeoutMs?: number;
     credentials?: RequestCredentials;
     onRequest?: RequestHook;
+    pathDefaults?: () => PathValues;
 }
 
 export interface WebSettings{
@@ -28,6 +30,7 @@ export interface WebSettings{
     timeoutMs: number;
     credentials: RequestCredentials | undefined;
     onRequest: RequestHook | null;
+    pathDefaults: (() => PathValues) | null;
 }
 
 const ConfigErrors = defineErrors({
@@ -50,7 +53,8 @@ export const configure = ({
     legacyKeys = [],
     timeoutMs = 0,
     credentials,
-    onRequest
+    onRequest,
+    pathDefaults
 }: WebOptions) => {
     // A function is read on every call, so an app can point at another api while it runs.
     const fixed = typeof apiUrl === 'function' ? null : baseOf(apiUrl);
@@ -64,7 +68,8 @@ export const configure = ({
         legacyKeys,
         timeoutMs,
         credentials,
-        onRequest: onRequest ?? null
+        onRequest: onRequest ?? null,
+        pathDefaults: pathDefaults ?? null
     };
 };
 

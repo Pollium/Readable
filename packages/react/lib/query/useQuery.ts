@@ -1,4 +1,4 @@
-import { Body, isComplete, pathOf, request, searchOf, Target } from '../http/call';
+import { Body, filledPath, isComplete, pathOf, request, searchOf, Target } from '../http/call';
 import { useSession } from '../session/session';
 import { cache } from './cache';
 import { Endpoint } from '@pollium/readable-contracts/routing';
@@ -38,7 +38,11 @@ export const keyOf = (
 
 const unsubscribed = () => undefined;
 
-export const prefetch = <I, O>(endpoint: Endpoint<I, O>, target: QueryTarget<I> = {} as QueryTarget<I>): Promise<void> => {
+// The defaults are read once, so the answer is asked for and kept under the same path.
+const filled = <T extends Target>(target: T): T => ({ ...target, path: filledPath(target.path) });
+
+export const prefetch = <I, O>(endpoint: Endpoint<I, O>, given: QueryTarget<I> = {} as QueryTarget<I>): Promise<void> => {
+    const target = filled(given);
     if(!isComplete(endpoint.path, target.path)) return Promise.resolve();
 
     const key = keyOf(endpoint, target);
@@ -48,9 +52,10 @@ export const prefetch = <I, O>(endpoint: Endpoint<I, O>, target: QueryTarget<I> 
 
 export const useQuery = <I, O, T = O>(
     endpoint: Endpoint<I, O>,
-    target: QueryTarget<I> | Pending = {} as QueryTarget<I>,
+    given: QueryTarget<I> | Pending = {} as QueryTarget<I>,
     { select, enabled = true, fresh = false, dependsOn }: QueryOptions<O, T> = {}
 ): Query<T, O> => {
+    const target = given && filled(given);
     const upstream = [dependsOn ?? []].flat();
     const failed = upstream.find((query) => query.error !== undefined && query.data === null);
     const waiting = upstream.some((query) => query.loading && query.data === null);

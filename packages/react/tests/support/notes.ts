@@ -27,7 +27,9 @@ export const noteRoutes = {
     notebooks: get<{ id: string }[]>('/notebooks'),
     search: post<{ text: string }, Note[]>('/notes/search'),
     me: get<{ id: string }>('/me'),
-    download: get<void>('/notebooks/:notebookId/export')
+    download: get<void>('/notebooks/:notebookId/export'),
+    members: get<{ id: string }[]>('/teams/:teamId/members'),
+    removeMember: del('/teams/:teamId/members/:memberId')
 };
 
 export const NoteErrors = defineErrors({
