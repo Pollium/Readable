@@ -1,14 +1,22 @@
-import { readableConfig } from '../app/config';
+import { optionalEnv, readableConfig } from '../app/config';
+import { dialectOf } from '../database/dialect';
 import { Transport } from './Transport';
 import { MemoryTransport } from './MemoryTransport';
+import { PostgresTransport } from './PostgresTransport';
 import { RedisTransport } from './RedisTransport';
 
 let chosen: Transport | undefined;
 let fallback: Transport | undefined;
 
-// Redis when the app has one, and one process otherwise.
+// Redis when the app has one, else the Postgres database it already opens, else one process.
 const fromConfig = (): Transport => {
     if(readableConfig().redis) return new RedisTransport();
+
+    const url = optionalEnv('DATABASE_URL');
+    if(url !== undefined && dialectOf(url) === 'postgres'){
+        return new PostgresTransport({ url, schema: optionalEnv('DATABASE_SCHEMA') });
+    }
+
     return new MemoryTransport();
 };
 
