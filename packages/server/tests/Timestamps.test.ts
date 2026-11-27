@@ -2,13 +2,14 @@ import { createDataSource } from '../lib/database/data-source';
 import { BaseModel } from '../lib/database/models';
 import { Entity } from 'typeorm';
 import { describe, expect, it } from 'vitest';
+import { TEST_DATABASE_URL } from './env';
 
 @Entity()
 class Stamp extends BaseModel{}
 
 const typesOf = async (timestamptz?: boolean) => {
     const dataSource = createDataSource({
-        url: 'postgres://pollium:pollium@localhost:5432/pollium',
+        url: TEST_DATABASE_URL,
         schema: undefined,
         synchronize: false,
         timestamptz

@@ -7,6 +7,7 @@ import { Middleware } from '../lib/http/middleware';
 import websocket, { WebSocket } from '@fastify/websocket';
 import Fastify, { FastifyInstance } from 'fastify';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { TEST_REDIS } from './env';
 
 const CHANNEL = '/probe';
 const ROOM = 'probe:room';
@@ -66,7 +67,7 @@ describe('a live socket follows current authorization', () => {
         configure({
             name: 'readable',
             jwtSecret: 'test-jwt-secret',
-            redis: { host: 'localhost', port: 6379 },
+            redis: TEST_REDIS,
             storage: null
         });
     });

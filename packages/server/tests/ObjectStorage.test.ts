@@ -2,6 +2,7 @@ import { configure } from '../lib/app/config';
 import { objectStorage } from '../lib/storage/ObjectStorage';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { TEST_REDIS } from './env';
 
 const dispositionOf = async (contentType: string): Promise<string | undefined> => {
     const sent = vi.spyOn(S3Client.prototype, 'send').mockImplementation(() => Promise.resolve({}));
@@ -17,7 +18,7 @@ describe('objectStorage', () => {
         configure({
             name: 'readable',
             jwtSecret: 'test-jwt-secret',
-            redis: { host: 'localhost', port: 6379 },
+            redis: TEST_REDIS,
             storage: { endpoint: 'http://storage.test', region: 'us-east-1', accessKey: 'a', secretKey: 's', bucket: 'b', publicUrl: 'http://storage.test/b' }
         });
     });

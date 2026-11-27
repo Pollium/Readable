@@ -4,18 +4,19 @@ import { RuntimeError } from '../lib/app/errors';
 import { createDataSource } from '../lib/database/data-source';
 import { configure } from '../lib/app/config';
 import { afterAll, describe, expect, it } from 'vitest';
+import { TEST_DATABASE_URL, TEST_REDIS } from './env';
 
 interface ClientAddress{
     ip: string;
 }
 
-const DATABASE_URL = 'postgres://pollium:pollium@localhost:5432/pollium';
+const DATABASE_URL = TEST_DATABASE_URL;
 const VISITOR = '203.0.113.7';
 const FORGED = '192.0.2.1';
 const NGINX = '172.18.0.4';
 const INGRESS = '10.0.3.2';
 const DIRECT_CLIENT = '198.51.100.9';
-const REDIS = { host: 'localhost', port: 6379 };
+const REDIS = TEST_REDIS;
 
 configure({ name: 'readable', jwtSecret: null, redis: REDIS, storage: null });
 
