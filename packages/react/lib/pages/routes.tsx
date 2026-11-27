@@ -1,7 +1,7 @@
 import { listPages, MetaFiles, metaOf, PageMeta } from './meta';
 import { registerLoader } from './prefetch';
 import { defineErrors } from '@pollium/readable-contracts/errors';
-import { ComponentType, lazy, ReactElement, Suspense } from 'react';
+import { ComponentType, lazy, ReactElement, ReactNode, Suspense } from 'react';
 import { RouteObject } from 'react-router-dom';
 
 export type PageTier = 'guest' | 'public' | 'protected';
@@ -20,6 +20,10 @@ export interface Page{
     path: string;
     load: () => Promise<PageModule>;
     meta?: PageMeta;
+}
+
+export interface RouteBuild{
+    pending?: ReactNode;
 }
 
 const PageErrors = defineErrors({
@@ -85,10 +89,10 @@ export const pagesOf = (files: PageFiles, meta?: MetaFiles): Page[] => {
     return pages;
 };
 
-const lazyElement = (load: Page['load']): ReactElement => {
+const lazyElement = (load: Page['load'], pending: ReactNode = null): ReactElement => {
     const Component = lazy(load);
     return (
-        <Suspense fallback={null}>
+        <Suspense fallback={pending}>
             <Component />
         </Suspense>
     );
@@ -102,15 +106,15 @@ const holds = (folder: string, path: string): boolean =>
 const relative = (path: string, parent: string | null): string =>
     parent === null || parent === '/' ? path.replace(/^\//, '') : path.slice(parent.length + 1);
 
-const routeOf = ({ tier, path, load, meta }: Page, parent: string | null): RouteObject => {
-    const route = { element: lazyElement(load), handle: { page: { tier, path, meta } } };
+const routeOf = ({ tier, path, load, meta }: Page, parent: string | null, pending: ReactNode): RouteObject => {
+    const route = { element: lazyElement(load, pending), handle: { page: { tier, path, meta } } };
     const at = relative(path, parent);
     return at === '' ? { index: true, ...route } : { path: at, ...route };
 };
 
 // A layout frames every page in its folder and below it. When layouts sit inside each other, a page is
 // framed by the deepest one that holds it, inside the ones above that.
-export const routesOf = (pages: readonly Page[]): RouteObject[] => {
+export const routesOf = (pages: readonly Page[], { pending }: RouteBuild = {}): RouteObject[] => {
     const layouts = pages.filter((page) => page.kind === 'layout');
     const frameOf = (page: Page): Page | undefined => layouts
         .filter((layout) => holds(layout.path, page.path) && (page.kind === 'page' || layout.path !== page.path))
@@ -119,10 +123,10 @@ export const routesOf = (pages: readonly Page[]): RouteObject[] => {
     const framedBy = (parent: Page | undefined): RouteObject[] => {
         const parentPath = parent?.path ?? null;
         return [
-            ...pages.filter((page) => page.kind === 'page' && frameOf(page) === parent).map((page) => routeOf(page, parentPath)),
+            ...pages.filter((page) => page.kind === 'page' && frameOf(page) === parent).map((page) => routeOf(page, parentPath, pending)),
             ...layouts.filter((layout) => frameOf(layout) === parent).map((layout) => ({
                 path: relative(layout.path, parentPath),
-                element: lazyElement(layout.load),
+                element: lazyElement(layout.load, pending),
                 children: framedBy(layout)
             }))
         ];
