@@ -185,12 +185,33 @@ useChannel(towerGateway, { 'tower.overview': overview.set }, { join: ['tower.wat
 - Every component on a channel shares one socket, closed with the last one.
 - The socket sends the session's token as its subprotocol, which `SocketAuthenticatedRoute` reads, and
   reconnects with a backoff, at once when the browser is back online or the tab is shown again.
-- `join` is sent on every open, so after a reconnect too, and again when it changes.
-- A close with `SocketClose.SessionExpired` (4401) ends the session and stays closed. `AccessRevoked`
+- A close with `SocketClose.SessionExpired` (4401) ends the session it opened with and stays closed until
+  the next session. `AccessRevoked`
   (4403) reconnects: the gateway sends it when a socket loses one room, such as a conversation deleted
   while open, and a session that was really revoked ends on the next call the api refuses.
-- `useChannel` answers `{ send, status, lastError, clearError }`; `lastError` is the last `{ error }`
-  frame, and `onError(error, sessionId)` hears each one with the `sessionId` it names.
+- `join` is a tuple `[type, fields]`, or `[type, fields, leave]` where `leave` names the message sent with
+  the same fields when the join goes away. `joins: [...]` holds several. Joins are sent on every open
+  before anything queued; one that changes is left and the new one joined, the others stay; on unmount
+  each is left. A join two components hold is sent once and left with the last of them.
+- `useChannel` answers `{ send, request, status, lastError, clearError }`; `lastError` is the last
+  `{ error }` frame, and `onError(error, sessionId)` hears each one with the `sessionId` it names.
+- `send(type, fields)` sends only while the socket is open and says whether it did. `send(type, fields,
+  { queue: true })` keeps the message until the socket opens, up to 256 a channel.
+- `request(type, fields, { timeoutMs })` asks and resolves with the gateway's answer, typed as the frame of
+  that type. It waits while the socket connects and rejects with `Gateway::Timeout` after 30 seconds by
+  default, `Gateway::Closed` when the socket drops after sending it, or the code the gateway answered.
+  The answer never reaches the frame handlers, nor `lastError`.
+- `answers: { 'tool.invoke': async (data) => result }` answers what the gateway asks with
+  `connection.request()`; a thrown error answers its message. A question nobody answers is refused with
+  `Gateway::UnknownMessageType`.
+- Bytes: a handler gets `(data, bytes)` for a binary frame; `send` and `request` take `{ bytes }`; an
+  answer returns `binary(data, bytes)` from `@pollium/readable-contracts/gateway`.
+- The socket reconnects when the session's token changes, with the new one or without one, and joins again.
+- A close with `4401` or `4403` and an error code as its reason is a refusal: the channel stays closed,
+  `lastError` is that code, and a new session opens it again. A refusal of another status backs off as
+  any drop does.
+- Outside React, `channels.acquire(path)` gives the shared `SocketChannel` (`send`, `request`, `join`, `on`,
+  `answer`, `onStatus`, `onError`) and `channels.release(path)` lets go of it.
 
 ## Forms
 
@@ -238,7 +259,8 @@ beforeEach(() => configure({ name: 'condor', apiUrl: 'http://api.test' }));
 ```
 
 Stub `fetch` with `vi.stubGlobal` and answer `{ data }` as the api does; `WebSocket` the same way for a
-gateway. A test renders a page or a hook with `@testing-library/react`.
+gateway, with `onopen`, `onmessage`, `onclose`, `send`, `close` and `readyState`. A binary frame arrives as
+an `ArrayBuffer` and is sent as a `Uint8Array`. A test renders a page or a hook with `@testing-library/react`.
 
 ## Things that will otherwise burn an hour
 
@@ -250,7 +272,7 @@ gateway. A test renders a page or a hook with `@testing-library/react`.
   named and the options inline. Anything else gets no validator, and the server still refuses.
 - **`typia` must be a dependency of the web.** The plugin writes `import typia from 'typia'` into the
   web's own files.
-- **The handlers of `useChannel` are read once, when it mounts.** A handler added later is never called;
-  its body may change on every render.
+- **The handlers and answers of `useChannel` are read once, when it mounts.** A handler added later is
+  never called; its body may change on every render.
 - **On Node 25 a test that reads `localStorage` gets Node's.** `readableConfig` starts the test workers
   with `--no-experimental-webstorage`; a web that writes its own Vite config needs the same.
