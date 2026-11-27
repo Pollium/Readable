@@ -1,9 +1,9 @@
 import { OutgoingRequest, settings } from '../app/config';
 import { session } from '../session/session';
+import { parsed, refusal, unwrap } from './answer';
 import { ApiError } from './ApiError';
 import { Deadline, deadlineOf } from './deadline';
-import { AuthErrors, baseCodeOf, defineErrors } from '@pollium/readable-contracts/errors';
-import { ApiError as ErrorBody, ApiResponse, PageOf } from '@pollium/readable-contracts/http';
+import { defineErrors } from '@pollium/readable-contracts/errors';
 import { Endpoint } from '@pollium/readable-contracts/routing';
 
 export type PathValues = Readonly<Record<string, string | number | undefined>>;
@@ -61,10 +61,6 @@ const CallErrors = defineErrors({
 });
 
 const PARAM = /:(\w+)/g;
-
-const ENDS_SESSION = Object.entries(AuthErrors.causes)
-    .filter(([, status]) => status === 401)
-    .map(([cause]) => `${AuthErrors.domain}::${cause}`);
 
 // A param the call leaves out, or gives as undefined, takes the app's default, such as the team the
 // user has open.
@@ -137,26 +133,6 @@ export const headersOf = (
     };
 };
 
-const unwrap = (payload: unknown): unknown => {
-    const answer = payload as ApiResponse<unknown> | undefined;
-    if(!answer?.meta) return answer?.data;
-
-    return {
-        items: answer.data as unknown[],
-        meta: answer.meta
-    } satisfies PageOf<unknown>;
-};
-
-const parsed = (text: string): unknown => {
-    if(text === '') return undefined;
-
-    try{
-        return JSON.parse(text);
-    }catch{
-        return undefined;
-    }
-};
-
 const payloadOf = async (response: Response): Promise<unknown> => parsed(await response.text().catch(() => ''));
 
 const answerOf = async (response: Response, as: AnswerKind): Promise<unknown> => {
@@ -207,10 +183,7 @@ export const request = async (endpoint: Pick<Endpoint, 'method' | 'path'>, args:
     const { response, answer } = await answered(url, { ...init, signal: deadline.signal }, as, deadline, init.signal ?? undefined);
     if(response.ok) return answer;
 
-    const payload = await payloadOf(response);
-    const code = (payload as ErrorBody | undefined)?.error ?? response.statusText;
-    if(response.status === 401 && token !== null && ENDS_SESSION.includes(baseCodeOf(code))) session.end(token);
-    throw new ApiError(response.status, code, payload);
+    throw refusal(response.status, response.statusText, await payloadOf(response), token);
 };
 
 export const call = <I, O, const A extends AnswerKind = 'json'>(endpoint: Endpoint<I, O>, ...[args]: ArgsOf<I, A>): Promise<AnswerOf<A, O>> =>
