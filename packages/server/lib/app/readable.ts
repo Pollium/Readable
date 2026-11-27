@@ -8,6 +8,7 @@ import {
 } from './config';
 import { discoverIn } from './discovery';
 import { DatabaseOptions, MigrationSource, createDataSource } from '../database/data-source';
+import { SessionCutoffStore, useSessionCutoffs } from '../auth/sessions';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -18,6 +19,7 @@ export interface ReadableOptions extends Pick<ApplicationOptions, 'publicPaths' 
     timestamptz?: boolean;
     migrations?: MigrationSource;
     database?: DatabaseOptions;
+    sessionCutoffs?: SessionCutoffStore;
 }
 
 const scopeOf = (root: string): string => {
@@ -33,6 +35,7 @@ export const readable = ({
     timestamptz,
     migrations,
     database,
+    sessionCutoffs,
     ...hooks
 }: ReadableOptions = {}): Application => {
     const service = serviceConfig('');
@@ -43,6 +46,7 @@ export const readable = ({
         redis: optionalEnv('REDIS_HOST') === undefined ? null : redisFromEnv(),
         storage: optionalEnv('STORAGE_ENDPOINT') === undefined ? null : storageFromEnv()
     });
+    if(sessionCutoffs) useSessionCutoffs(sessionCutoffs);
 
     return new Application({
         port: service.port,
