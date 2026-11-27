@@ -1,9 +1,11 @@
-import ConnectionsRegistry from './ConnectionRegistry';
+import ConnectionsRegistry, { OutboundMessage } from './ConnectionRegistry';
 import { bindings, ChannelOptions, invocations } from './bindings';
-import { LiveConnection } from './Connection';
+import { Connection, LiveConnection } from './Connection';
 import { GatewayError, RuntimeError } from '../app/errors';
 import { getClassMiddleware, MiddlewareFn } from '../http/middleware';
 import { getParamResolvers } from '../http/params';
+import { readableConfig } from '../app/config';
+import { broadcast } from '../events/Broadcast';
 import { logger } from '../app/logger';
 import { abortScope } from '../app/abort';
 import {
@@ -18,11 +20,25 @@ import {
 } from '@pollium/readable-contracts/gateway';
 import { WebSocket } from '@fastify/websocket';
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { randomUUID } from 'node:crypto';
 import type BaseGateway from './Gateway';
+
+export interface RoomSendOptions{
+    except?: Connection<object> | string;
+    bytes?: Uint8Array;
+}
 
 interface Handler{
     gateway: BaseGateway;
     handlerName: string | symbol;
+}
+
+interface Relayed{
+    origin: string;
+    room: string;
+    message: OutboundMessage<unknown>;
+    except?: string;
+    bytes?: string;
 }
 
 interface ServerOptions{
@@ -87,10 +103,13 @@ export class ChannelHost{
     readonly #options: ChannelOptions = {};
     readonly #authorizations = new WeakMap<FastifyRequest, () => Promise<void>>();
     readonly #refusals = new WeakMap<FastifyRequest, unknown>();
+    readonly #origin = randomUUID();
+    #relaying = false;
 
     constructor(path: string, registry: ConnectionsRegistry){
         this.#path = path;
         this.registry = registry;
+        registry.observeJoins(() => this.#relay());
     }
 
     add(gateway: BaseGateway, options: ChannelOptions){
@@ -122,6 +141,24 @@ export class ChannelHost{
                 : { threshold: compression === true ? DEFLATE_THRESHOLD_BYTES : compression.threshold ?? DEFLATE_THRESHOLD_BYTES };
         }
         return options;
+    }
+
+    async toRoom(room: string, message: OutboundMessage<unknown>, { except, bytes }: RoomSendOptions = {}){
+        const skipped = typeof except === 'string' ? except : except?.id;
+        this.#deliver(room, message, skipped, bytes);
+
+        try{
+            const relayed: Relayed = {
+                origin: this.#origin,
+                room,
+                message,
+                ...(skipped === undefined ? {} : { except: skipped }),
+                ...(bytes === undefined ? {} : { bytes: Buffer.from(bytes).toString('base64') })
+            };
+            await broadcast.publish(this.#topic(), relayed);
+        }catch(error){
+            logger.error(`Gateway::RelayFailed:${this.#path}`, error);
+        }
     }
 
     async #admit(req: FastifyRequest, reply: FastifyReply){
@@ -289,6 +326,29 @@ export class ChannelHost{
             error: answer.message,
             ...(typeof sessionId === 'string' ? { sessionId } : {})
         }));
+    }
+
+    #deliver(room: string, message: OutboundMessage<unknown>, except: string | undefined, bytes: Uint8Array | undefined){
+        if(except === undefined) this.registry.sendToRoom(room, message, bytes);
+        else this.registry.sendToRoomExcept(room, except, message, bytes);
+    }
+
+    #relay(){
+        if(this.#relaying) return;
+        this.#relaying = true;
+
+        try{
+            broadcast.subscribe<Relayed>(this.#topic(), ({ origin, room, message, except, bytes }) => {
+                if(origin === this.#origin) return;
+                this.#deliver(room, message, except, bytes === undefined ? undefined : Buffer.from(bytes, 'base64'));
+            });
+        }catch(error){
+            logger.error(`Gateway::RelayFailed:${this.#path}`, error);
+        }
+    }
+
+    #topic(): string{
+        return `${readableConfig().name}:gateway:${this.#path}`;
     }
 
     #guards(): MiddlewareFn[]{

@@ -24,6 +24,7 @@ export default class ConnectionsRegistry{
     #access = new WeakMap<WebSocket, Map<string, RoomAccess>>();
     #connections = new WeakMap<WebSocket, LiveConnection>();
     #byId = new Map<string, LiveConnection>();
+    #onJoin: (() => void) | undefined;
 
     add(socket: WebSocket, connection?: LiveConnection){
         this.#sockets.add(socket);
@@ -61,6 +62,7 @@ export default class ConnectionsRegistry{
         const memberships = this.#memberships.get(socket) ?? new Set<string>();
         memberships.add(room);
         this.#memberships.set(socket, memberships);
+        this.#onJoin?.();
 
         if(access === undefined) return;
         const granted = this.#access.get(socket) ?? new Map<string, RoomAccess>();
@@ -142,6 +144,11 @@ export default class ConnectionsRegistry{
         const skipped = this.#socketOf(except);
         const members = [...this.#rooms.get(room) ?? []].filter((socket) => socket !== skipped);
         this.#send(members, message, bytes);
+    }
+
+    // The channel opens its relay from other instances once a room is in use here.
+    observeJoins(listener: () => void){
+        this.#onJoin = listener;
     }
 
     #send(sockets: Iterable<WebSocket>, message: OutboundMessage<unknown>, bytes?: Uint8Array){
