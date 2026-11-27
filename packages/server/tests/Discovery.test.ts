@@ -1,4 +1,4 @@
-import { discoverFrom } from '../lib/app/discovery';
+import { discoverFrom, discoverIn } from '../lib/app/discovery';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -39,5 +39,21 @@ describe('discoverFrom', () => {
         expect(loaded).toEqual(['controllers/Note.ts', 'models/Note.ts']);
         expect(discovered.controllers).toEqual([{ prefix: '/notes', Controller: NoteController }]);
         expect(discovered.entities).toEqual([Note]);
+    });
+
+    it('loads built .js files as well, and never a declaration, a source map or a test', async () => {
+        const built = join(root, 'built');
+        await mkdir(join(built, 'modules/notes/controllers'), { recursive: true });
+        for(const file of ['Note.js', 'Note.js.map', 'Note.d.ts', 'Draft.ts', 'Note.test.ts', 'Note.test.js']){
+            await writeFile(join(built, 'modules/notes/controllers', file), '');
+        }
+        const loaded: string[] = [];
+
+        await discoverIn(built, ['modules'], async (url) => {
+            loaded.push(url.split('/controllers/')[1]);
+            return { default: NoteController };
+        });
+
+        expect(loaded).toEqual(['Draft.ts', 'Note.js']);
     });
 });

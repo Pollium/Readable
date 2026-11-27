@@ -21,6 +21,11 @@ export interface Discovered{
 
 export type ModuleLoader = (url: string) => Promise<{ default?: unknown }>;
 
+// Source and the output of a build both count; a declaration, a source map or a test never does.
+export const isModuleFile = (file: string): boolean => {
+    return /\.(?:ts|js)$/.test(file) && !file.endsWith('.d.ts') && !/\.test\./.test(file);
+};
+
 export class ModuleDiscovery{
     constructor(private readonly modulesDir: string, private readonly load: ModuleLoader){}
 
@@ -79,7 +84,7 @@ export class ModuleDiscovery{
 
         const loaded: T[] = [];
         for(const file of files.sort()){
-            if(!file.endsWith('.ts') || file.endsWith('.d.ts')) continue;
+            if(!isModuleFile(file)) continue;
             const imported = await this.load(pathToFileURL(join(dir, file)).href);
             if(imported.default) loaded.push(imported.default as T);
         }
