@@ -21,7 +21,7 @@ let application: Application;
 
 beforeAll(() => {
     Object.assign(process.env, env);
-    application = readable({ root, timestamptz: true });
+    application = readable({ root, timestamptz: true, database: { applicationName: 'notes-api' } });
 });
 
 afterAll(async () => {
@@ -42,5 +42,9 @@ describe('readable', () => {
         expect(res.json()).toEqual({ data: 'first' });
         expect(application.dataSource?.entityMetadatas.map((entity) => entity.name)).toEqual(['Note']);
         expect(application.dataSource?.getMetadata('Note').findColumnWithPropertyName('createdAt')?.type).toBe('timestamptz');
+    });
+
+    it('opens the database with the TypeORM options the app adds', () => {
+        expect(application.dataSource?.options).toMatchObject({ type: 'postgres', applicationName: 'notes-api' });
     });
 });

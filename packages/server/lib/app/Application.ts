@@ -3,15 +3,16 @@ import rateLimit from '@fastify/rate-limit';
 import websocket from '@fastify/websocket';
 import BaseGateway, { websocketOptions } from '../gateway/Gateway';
 import BaseQueue from '../queues/BaseQueue';
-import { ValidationError, RateLimitError } from './errors';
+import { ValidationError, RateLimitError, ConfigError } from './errors';
 import { answerOf } from './error-answers';
 import { ApiError } from '@pollium/readable-contracts/http';
 import { LogLevel, logger } from './logger';
 import { broadcast } from '../events/Broadcast';
+import { closeTransport } from '../events/transports';
 import { registerCompression } from './compression';
 import { eventBus, registerEventGroup } from '../events/EventBus';
 import { Discovered, MountedController } from './discovery';
-import { redis } from './redis';
+import { hasRedis, redis } from './redis';
 import { HttpOptions, applyHttpOptions } from './http-options';
 import { TRACE_ID_HEADER, registerTracing } from './trace';
 import Fastify, { LogController, FastifyInstance, FastifyBaseLogger } from 'fastify';
@@ -83,9 +84,10 @@ export default class Application{
                 });
             }
         });
+        // Counted in Redis when the app has it, so every instance shares a limit; in memory otherwise.
         await this.#app.register(rateLimit, {
             global: false,
-            redis,
+            redis: hasRedis() ? redis : undefined,
             nameSpace: 'rl:',
             errorResponseBuilder: () => RateLimitError.TooManyRequests()
         });
@@ -93,6 +95,7 @@ export default class Application{
         if(this.#options.plugins) await this.#options.plugins(this.#app);
 
         const discovered = await this.#options.discover();
+        if(startQueues) this.#requireRedisFor(discovered.queues);
 
         await this.#openDatabase(discovered.entities);
 
@@ -119,6 +122,7 @@ export default class Application{
         await Promise.all(this.#queues.map((queue) => queue.close()));
         await eventBus.close();
         await broadcast.close();
+        await closeTransport();
         await this.#dataSource?.destroy();
     }
 
@@ -172,6 +176,11 @@ export default class Application{
         for(const Gateway of gateways){
             new Gateway().register(this.#app);
         }
+    }
+
+    // A queue keeps its jobs in Redis: without it the app would boot and lose every job it was given.
+    #requireRedisFor(queues: Array<new () => BaseQueue<unknown>>){
+        if(queues.length > 0 && !hasRedis()) throw ConfigError.MissingEnv('REDIS_HOST');
     }
 
     #startQueues(queues: Array<new () => BaseQueue<unknown>>){
