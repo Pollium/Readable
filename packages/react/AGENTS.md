@@ -326,7 +326,9 @@ issueCopy.with(projectCopy)(detail.error); // the copy of both tables
 - A function is read when the error is described, so copy follows the language.
 - What a table does not name falls to the app's `copy`, given to `mount`, which needs every code readable
   answers (`Auth::*`, `RateLimit::*`, `Request::*`, `Server::*`), the copy for `offline` and `unknown`,
-  and may add codes several modules share. `unknown` may be `(code) => string`, to name the code it could
+  and may add codes several modules share. It may also name `Database::*` (a unique, foreign key or not
+  null violation) and `Request::Malformed`, `Request::BodyTooLarge` and `Request::UnsupportedMediaType`;
+  without them those are `unknown`. `unknown` may be `(code) => string`, to name the code it could
   not describe. `describeError(error)` reads only the app's copy.
 - An error is an `ApiError` with `status`, `code` (no detail), `fields` (the field errors the api
   answered) and `isNetworkError`. A call that ran out of time is `Network::Timeout`, a network error:
