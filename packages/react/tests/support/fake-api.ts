@@ -5,6 +5,7 @@ export interface Sent{
     url: URL;
     headers: Record<string, string>;
     body: unknown;
+    init: RequestInit;
 }
 
 export interface Answer{
@@ -16,7 +17,15 @@ export interface Answer{
 
 type Handler = (sent: Sent) => Answer | Promise<Answer>;
 
-const bodyOf = (body: RequestInit['body']): unknown => typeof body === 'string' ? JSON.parse(body) : body;
+const parsed = (text: string): unknown => {
+    try{
+        return JSON.parse(text);
+    }catch{
+        return text;
+    }
+};
+
+const bodyOf = (body: RequestInit['body']): unknown => typeof body === 'string' ? parsed(body) : body;
 
 export const fakeApi = () => {
     const routes = new Map<string, Handler>();
@@ -27,7 +36,8 @@ export const fakeApi = () => {
             method: init.method ?? 'GET',
             url: new URL(input),
             headers: { ...init.headers as Record<string, string> },
-            body: bodyOf(init.body)
+            body: bodyOf(init.body),
+            init
         };
         sent.push(request);
 
