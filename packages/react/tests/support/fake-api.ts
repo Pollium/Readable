@@ -10,6 +10,8 @@ export interface Sent{
 export interface Answer{
     status?: number;
     body?: unknown;
+    raw?: BodyInit;
+    headers?: Record<string, string>;
 }
 
 type Handler = (sent: Sent) => Answer | Promise<Answer>;
@@ -30,10 +32,10 @@ export const fakeApi = () => {
         sent.push(request);
 
         const handler = routes.get(`${request.method} ${request.url.pathname}`);
-        const { status = 200, body } = handler ? await handler(request) : { status: 404, body: { error: 'Route::NotFound' } };
-        return status === 204
-            ? new Response(null, { status })
-            : new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+        const { status = 200, body, raw, headers } = handler ? await handler(request) : { status: 404, body: { error: 'Route::NotFound' } } as Answer;
+        if(status === 204) return new Response(null, { status });
+        if(raw !== undefined) return new Response(raw, { status, headers });
+        return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...headers } });
     }));
 
     return {

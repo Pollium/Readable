@@ -18,14 +18,24 @@ export type Body<I> = [I] extends [never]
     ? { body?: FormData }
     : undefined extends I ? { body?: I | FormData } : { body: I | FormData };
 
-export type CallArgs<I> = Target & Body<I> & {
+export type AnswerKind = 'json' | 'text' | 'blob' | 'arrayBuffer' | 'response';
+
+export type AnswerOf<A extends AnswerKind, O> =
+    A extends 'text' ? string
+        : A extends 'blob' ? Blob
+            : A extends 'arrayBuffer' ? ArrayBuffer
+                : A extends 'response' ? Response
+                    : O;
+
+export type CallArgs<I, A extends AnswerKind = 'json'> = Target & Body<I> & {
     signal?: AbortSignal;
     keepalive?: boolean;
+    as?: A;
 };
 
-export type ArgsOf<I> = [I] extends [never]
-    ? [args?: CallArgs<I>]
-    : undefined extends I ? [args?: CallArgs<I>] : [args: CallArgs<I>];
+export type ArgsOf<I, A extends AnswerKind = 'json'> = [I] extends [never]
+    ? [args?: CallArgs<I, A>]
+    : undefined extends I ? [args?: CallArgs<I, A>] : [args: CallArgs<I, A>];
 
 const CallErrors = defineErrors({
     domain: 'Call',
@@ -84,14 +94,25 @@ const unwrap = (payload: unknown): unknown => {
     } satisfies PageOf<unknown>;
 };
 
-const payloadOf = async (response: Response): Promise<unknown> => {
-    const text = await response.text().catch(() => '');
+const parsed = (text: string): unknown => {
     if(text === '') return undefined;
 
     try{
         return JSON.parse(text);
     }catch{
         return undefined;
+    }
+};
+
+const payloadOf = async (response: Response): Promise<unknown> => parsed(await response.text().catch(() => ''));
+
+const answerOf = async (response: Response, as: AnswerKind): Promise<unknown> => {
+    switch(as){
+        case 'response': return response;
+        case 'text': return response.text();
+        case 'blob': return response.blob();
+        case 'arrayBuffer': return response.arrayBuffer();
+        default: return unwrap(await payloadOf(response));
     }
 };
 
@@ -104,8 +125,8 @@ const send = async (url: string, init: RequestInit): Promise<Response> => {
     }
 };
 
-export const request = async (endpoint: Pick<Endpoint, 'method' | 'path'>, args: CallArgs<unknown> = {}): Promise<unknown> => {
-    const { base, path, query, headers, body, signal, keepalive } = args;
+export const request = async (endpoint: Pick<Endpoint, 'method' | 'path'>, args: CallArgs<unknown, AnswerKind> = {}): Promise<unknown> => {
+    const { base, path, query, headers, body, signal, keepalive, as = 'json' } = args;
     const token = session.token;
     const response = await send(urlOf(endpoint, { base, path, query }), {
         method: endpoint.method,
@@ -114,13 +135,13 @@ export const request = async (endpoint: Pick<Endpoint, 'method' | 'path'>, args:
         signal,
         keepalive
     });
-    const payload = await payloadOf(response);
-    if(response.ok) return unwrap(payload);
+    if(response.ok) return answerOf(response, as);
 
+    const payload = await payloadOf(response);
     const code = (payload as ErrorBody | undefined)?.error ?? response.statusText;
     if(response.status === 401 && token !== null && ENDS_SESSION.includes(baseCodeOf(code))) session.end(token);
     throw new ApiError(response.status, code, payload);
 };
 
-export const call = <I, O>(endpoint: Endpoint<I, O>, ...[args]: ArgsOf<I>): Promise<O> =>
-    request(endpoint, args as CallArgs<unknown>) as Promise<O>;
+export const call = <I, O, const A extends AnswerKind = 'json'>(endpoint: Endpoint<I, O>, ...[args]: ArgsOf<I, A>): Promise<AnswerOf<A, O>> =>
+    request(endpoint, args as CallArgs<unknown, AnswerKind>) as Promise<AnswerOf<A, O>>;

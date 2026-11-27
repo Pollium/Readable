@@ -158,4 +158,55 @@ describe('call', () => {
 
         expect(typed).toBeTypeOf('function');
     });
+
+    it('answers the text of a call read as text, without unwrapping it', async () => {
+        const api = fakeApi();
+        api.on('GET', '/notebooks/nb1/export', { raw: '{"data":"kept"}', headers: { 'Content-Type': 'text/plain' } });
+
+        expect(await call(noteRoutes.download, { path: { notebookId: 'nb1' }, as: 'text' })).toBe('{"data":"kept"}');
+    });
+
+    it('answers a blob and the bytes of a call read as them', async () => {
+        const api = fakeApi();
+        api.on('GET', '/notebooks/nb1/export', { raw: new Uint8Array([1, 2, 3]), headers: { 'Content-Type': 'application/octet-stream' } });
+        const path = { notebookId: 'nb1' };
+
+        const blob = await call(noteRoutes.download, { path, as: 'blob' });
+        const bytes = await call(noteRoutes.download, { path, as: 'arrayBuffer' });
+
+        expect(blob).toBeInstanceOf(Blob);
+        expect([...new Uint8Array(await blob.arrayBuffer())]).toEqual([1, 2, 3]);
+        expect([...new Uint8Array(bytes)]).toEqual([1, 2, 3]);
+    });
+
+    it('answers the response itself, so its headers can be read', async () => {
+        const api = fakeApi();
+        api.on('GET', '/notebooks/nb1/export', { raw: 'a,b', headers: { 'Content-Disposition': 'attachment; filename="notes.csv"' } });
+
+        const response = await call(noteRoutes.download, { path: { notebookId: 'nb1' }, as: 'response' });
+
+        expect(response.headers.get('Content-Disposition')).toBe('attachment; filename="notes.csv"');
+        expect(await response.text()).toBe('a,b');
+    });
+
+    it('throws the code the api answered for a call read as anything but JSON', async () => {
+        const api = fakeApi();
+        api.on('GET', '/notebooks/nb1/export', { status: 404, body: { error: 'Note::NotFound' } });
+
+        await expect(call(noteRoutes.download, { path: { notebookId: 'nb1' }, as: 'blob' })).rejects.toMatchObject({ status: 404, code: 'Note::NotFound' });
+        await expect(call(noteRoutes.download, { path: { notebookId: 'nb1' }, as: 'response' })).rejects.toBeInstanceOf(ApiError);
+    });
+
+    it('types the answer by how the call reads it', () => {
+        const typed = async () => {
+            const blob: Blob = await call(noteRoutes.download, { path: { notebookId: 'nb1' }, as: 'blob' });
+            const text: string = await call(noteRoutes.me, { as: 'text' });
+            const me: { id: string } = await call(noteRoutes.me);
+            // @ts-expect-error a call read as bytes does not answer the endpoint's output
+            const wrong: { id: string } = await call(noteRoutes.me, { as: 'arrayBuffer' });
+            return [blob, text, me, wrong];
+        };
+
+        expect(typed).toBeTypeOf('function');
+    });
 });
