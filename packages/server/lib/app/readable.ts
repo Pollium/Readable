@@ -7,7 +7,7 @@ import {
     storageFromEnv
 } from './config';
 import { discoverIn } from './discovery';
-import { MigrationSource, createDataSource } from '../database/data-source';
+import { DatabaseOptions, MigrationSource, createDataSource } from '../database/data-source';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -17,6 +17,7 @@ export interface ReadableOptions extends Pick<ApplicationOptions, 'publicPaths' 
     folders?: string[];
     timestamptz?: boolean;
     migrations?: MigrationSource;
+    database?: DatabaseOptions;
 }
 
 const scopeOf = (root: string): string => {
@@ -31,6 +32,7 @@ export const readable = ({
     folders,
     timestamptz,
     migrations,
+    database,
     ...hooks
 }: ReadableOptions = {}): Application => {
     const service = serviceConfig('');
@@ -47,7 +49,7 @@ export const readable = ({
         corsOrigins: service.corsOrigins,
         log: service.log,
         discover: () => discoverIn(join(root, 'src'), folders),
-        createDataSource: (entities) => createDataSource({ ...service.database, timestamptz }, entities, migrations),
+        createDataSource: (entities) => createDataSource({ ...service.database, timestamptz }, entities, migrations, database),
         ...hooks
     });
 };
