@@ -65,6 +65,17 @@ export const RequestErrors = {
 
 export type RequestErrorCode = ErrorCode<typeof RequestErrors>;
 
+export const RequestProtocolErrors = {
+    domain: 'Request',
+    causes: {
+        Malformed: 400,
+        BodyTooLarge: 413,
+        UnsupportedMediaType: 415
+    }
+} as const satisfies ErrorTable;
+
+export type RequestProtocolErrorCode = ErrorCode<typeof RequestProtocolErrors>;
+
 export const AuthErrors = {
     domain: 'Auth',
     causes: {
