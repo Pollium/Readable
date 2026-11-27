@@ -6,9 +6,12 @@ import {
     serviceConfig,
     storageFromEnv
 } from './config';
-import { discoverIn } from './discovery';
+import { GlobbedModules, discoverIn, discoverModules } from './discovery';
 import { HttpOptions } from './http-options';
-import { MigrationSource, createDataSource } from '../database/data-source';
+import { DatabaseOptions, MigrationSource, createDataSource } from '../database/data-source';
+import { SessionCutoffStore, useSessionCutoffs } from '../auth/sessions';
+import { Transport } from '../events/Transport';
+import { useTransport } from '../events/transports';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -18,6 +21,10 @@ export interface ReadableOptions extends Pick<ApplicationOptions, 'publicPaths' 
     folders?: string[];
     timestamptz?: boolean;
     migrations?: MigrationSource;
+    database?: DatabaseOptions;
+    sessionCutoffs?: SessionCutoffStore;
+    transport?: Transport;
+    modules?: GlobbedModules;
 }
 
 const scopeOf = (root: string): string => {
@@ -32,6 +39,10 @@ export const readable = ({
     folders,
     timestamptz,
     migrations,
+    database,
+    sessionCutoffs,
+    transport,
+    modules,
     ...hooks
 }: ReadableOptions = {}): Application => {
     const service = serviceConfig('');
@@ -39,17 +50,19 @@ export const readable = ({
     configure({
         name: name ?? scopeOf(root),
         jwtSecret: optionalEnv('JWT_SECRET') ?? null,
-        redis: redisFromEnv(),
+        redis: optionalEnv('REDIS_HOST') === undefined ? null : redisFromEnv(),
         storage: optionalEnv('STORAGE_ENDPOINT') === undefined ? null : storageFromEnv()
     });
+    if(sessionCutoffs) useSessionCutoffs(sessionCutoffs);
+    if(transport) useTransport(transport);
 
     return new Application({
         port: service.port,
         host: service.host,
         corsOrigins: service.corsOrigins,
         log: service.log,
-        discover: () => discoverIn(join(root, 'src'), folders),
-        createDataSource: (entities) => createDataSource({ ...service.database, timestamptz }, entities, migrations),
+        discover: () => modules === undefined ? discoverIn(join(root, 'src'), folders) : discoverModules(modules, folders),
+        createDataSource: (entities) => createDataSource({ ...service.database, timestamptz }, entities, migrations, database),
         ...hooks
     });
 };

@@ -1,4 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "paths": {
+      "@pollium/readable/*": ["./lib/*"]
+    }
+  },
   "include": ["lib", "tests", "vite.config.ts"]
 }

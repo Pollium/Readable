@@ -37,6 +37,15 @@ describe('readableConfig', () => {
         expect(config.test?.server?.deps?.inline).toEqual(['@pollium/readable']);
     });
 
+    it('builds src/server.ts for Node into dist, reading an import of a type as Vitest does', () => {
+        expect(readableConfig({}, root).build).toEqual({
+            ssr: join(root, 'src/server.ts'),
+            outDir: join(root, 'dist'),
+            target: 'node22',
+            rollupOptions: { shimMissingExports: true }
+        });
+    });
+
     it('runs the tests under src with the app setup, when the app has one', () => {
         expect(readableConfig({}, root).test).toMatchObject({
             include: ['src/**/*.test.ts'],

@@ -26,8 +26,9 @@ src/modules/<module>/
     tests/          *.test.ts
 ```
 
-Discovery imports every `.ts` file in those six folders and takes its default export. Never put a test,
-a helper or a base class in them: it is imported and mounted too.
+Discovery imports every `.ts` and `.js` file in those six folders and takes its default export; a `.d.ts`,
+a `.map` or a `.test.*` file is skipped. Never put a helper or a base class in them: it is imported and
+mounted too.
 
 ```ts
 // src/server.ts
@@ -43,7 +44,9 @@ listen(readable());
 
 | Variable | Read as |
 |---|---|
-| `PORT`, `DATABASE_URL`, `REDIS_HOST`, `REDIS_PORT` | required |
+| `PORT`, `DATABASE_URL` | required |
+| `DATABASE_URL=sqlite:<path>`, `sqlite::memory:` | SQLite through better-sqlite3, which the app installs; any other URL is Postgres |
+| `REDIS_HOST`, `REDIS_PORT` | Redis, when `REDIS_HOST` is set; the port is `6379` when unset |
 | `DATABASE_SCHEMA` | the Postgres schema, `public` when unset |
 | `DATABASE_SYNCHRONIZE` | `false` turns synchronize off; it is on otherwise |
 | `JWT_SECRET` | needed by anything that signs or verifies a session |
@@ -55,6 +58,15 @@ listen(readable());
 Options: `name` (instead of the package scope), `folders` (instead of `['modules']`), `timestamptz`,
 `migrations`, `publicPaths` (paths any origin may call, without credentials), `plugins`, `afterDatabase`,
 `afterMount`, `root` (instead of the working directory).
+
+- `database`: more TypeORM options, as `{ poolSize, applicationName, logging, invalidWhereValuesBehavior:
+  { null: 'ignore', undefined: 'ignore' } }`, on either dialect. Readable's own keys win (`type`, `url`,
+  `database`, `entities`, `migrations`, `synchronize`, `schema`), and a `prepareDatabase` runs after
+  Readable's own on SQLite. `createDataSource(config, entities, migrations, options)` takes the same.
+- `transport`: what carries events and `broadcast` (see Events), instead of the one the environment picks.
+- `sessionCutoffs`: a `SessionCutoffStore` (`cutoffOf(userId)`, `cut(userId, at?)`) instead of Redis or
+  memory.
+- `modules`: the record `import.meta.glob` returns, instead of reading the folders from disk (see Builds).
 
 HTTP options, which `new Application(...)` takes too:
 
@@ -77,9 +89,30 @@ a new UUID otherwise. While the request runs, `traceId()` from `app/trace` retur
 carries it as `traceId`.
 
 `readableConfig(overrides)` is the whole Vite config: body validation, typia, the `@` and `@tests`
-aliases, tests under `src/**/*.test.ts` with `tests/setup.ts` when it exists, and readable itself run
-through Vite so discovery can load TypeScript. Pass only what the app adds, as `readableConfig({ test:
-{ restoreMocks: true } })`.
+aliases, tests under `src/**/*.test.ts` with `tests/setup.ts` when it exists, readable itself run
+through Vite so discovery can load TypeScript, and `vite build` (see Builds). Pass only what the app adds,
+as `readableConfig({ test: { restoreMocks: true } })`.
+
+### Builds
+
+`vite build` makes `dist/server.js` from `src/server.ts`, for Node 22: the app's dependencies stay imports
+Node resolves from `node_modules`, and readable goes into the bundle. A bundle has no module folders to
+read, so its server hands discovery a glob:
+
+```ts
+// src/server.ts
+/// <reference types="vite/client" />
+import 'reflect-metadata';
+import { readable } from '@pollium/readable/app/readable';
+import { listen } from '@pollium/readable/app/Application';
+
+listen(readable({ modules: import.meta.glob('./modules/*/*/*.ts') }));
+```
+
+The glob may be lazy or eager (never with `import:`), and `folders` still says which folders count; keys
+are matched on their end, so `./modules/...`, `../modules/...` and `/src/modules/...` all work. The same
+files load in the same order as from disk. `discoverModules(record, folders)` does it for an app that
+builds its own `Application`. Run the build with `node dist/server.js` from the app's folder.
 
 ## Routes
 
@@ -177,8 +210,8 @@ Every upload and form parameter of a handler shares one read of the parts, in an
   `Sec-WebSocket-Protocol` entry, then from `?token=`. `SocketOptionalAuthenticatedRoute` lets a socket
   with no token in, as `OptionalAuthenticatedRoute` does.
 - `ServiceKeyRoute(header, key)` lets another service in by a shared key.
-- `@RateLimit({ max, window: '1m' })` caps a route per client in Redis; the next hit is `429
-  RateLimit::TooManyRequests`.
+- `@RateLimit({ max, window: '1m' })` caps a route per client, counted in Redis, or in the process
+  without Redis; the next hit is `429 RateLimit::TooManyRequests`.
 
 ## Errors
 
@@ -232,11 +265,26 @@ export default class Note extends BaseModel{
   Record (`Note.findOneBy`, `note.save()`).
 - `@Fk('User')` on `ownerId` adds the uuid column and a many-to-one `owner`.
 - `@Hidden()` keeps a column out of every answer.
+- `@JsonColumn(options)` is `jsonb` on Postgres and `simple-json` on SQLite, read from `DATABASE_URL` when
+  the model's file is imported.
 - `database/queries` has `findOrThrow`, `isUniqueViolation`, `nextPosition`, `advisoryLock`, `countPerDay`,
-  `recentDates` and `tableRef`.
+  `recentDates` and `tableRef`, on both dialects.
 - With synchronize on, a column whose type changes is dropped and added again, and every row loses its
   value. `createdAt` and `updatedAt` are `timestamp`; an app whose tables already hold `timestamptz` passes
   `readable({ timestamptz: true })`, and never drops it.
+
+On SQLite:
+
+- Each connection gets a `uuidv7()` SQL function, so the id's default works there too.
+- The root manager's transactions (`dataSource.transaction`, `Model.getRepository().manager.transaction`)
+  run one at a time on the one connection; a transaction opened inside one goes through the manager it was
+  handed and is a savepoint. Opening one through the root manager from inside another waits forever.
+- `advisoryLock` does nothing, since transactions already run one at a time; `isUniqueViolation`
+  recognises SQLite's unique and primary key errors; `recentDates` and `countPerDay` count days in UTC.
+- `DATABASE_SCHEMA` and `timestamptz` are ignored, and dates are `datetime`.
+- Insert entities made with `create()` or `new`, which carry their id. `insert({ ... })` of a plain object
+  without an id fails there: TypeORM reads the new row back by its id on SQLite, and it has none.
+- A table whose name starts with `sqlite_` is refused, so no model is called `Sqlite...`.
 
 ## Events, queues, gateways
 
@@ -256,7 +304,22 @@ export default class NoteEvents{
 }
 ```
 
-Every instance of the app hears every event, through Redis.
+Every instance of the app hears every event, and every `broadcast.subscribe(channel, handler)` hears every
+`broadcast.publish(channel, payload)`, through one transport:
+
+| The app has | Transport |
+|---|---|
+| `REDIS_HOST` | `RedisTransport`: Redis pub/sub |
+| no Redis, a Postgres `DATABASE_URL` | `PostgresTransport`: LISTEN/NOTIFY on one channel, `readable_transport` |
+| neither | `MemoryTransport`: this process only |
+
+`readable({ transport })` or `useTransport(transport)` from `events/transports` replaces it. A transport is
+`{ publish(channel, message), subscribe(channel, onMessage), close() }` over strings and delivers to every
+subscriber, the publisher's own process included. On Postgres a message too big for a notification (over
+`inlineBytes`, 7000) goes to the `readable_transport_spool` table in the app's schema and only its id is
+sent; every instance reads the row, and rows older than `retainMs` (five minutes) are swept every minute.
+A dropped LISTEN connection is opened again. Under Vitest the event bus stays in the process unless the
+test chose a transport; broadcast always uses it.
 
 ```ts
 export default class DigestQueue extends BaseQueue<{ userId: string }>{
@@ -269,6 +332,8 @@ export default class DigestQueue extends BaseQueue<{ userId: string }>{
 
 `new DigestQueue().add(data)` enqueues a job. `concurrency`, `limiter`, `lockDuration` and `jobOptions`
 are protected fields to override. `new QueueProducer(name)` adds jobs to a queue another process works.
+Queues live in Redis: an app that has a queue and no `REDIS_HOST` stops at boot with
+`Config::MissingEnv:REDIS_HOST` (`build({ queues: false })`, as the test harness builds, does not).
 
 ```ts
 @Channel('/notes/live')
@@ -311,18 +376,23 @@ describe('NoteController', () => {
 ```
 
 - `useApp` builds the app once per file, truncates the schema before each test and stubs `BaseQueue.add`.
+  On SQLite (`DATABASE_URL: 'sqlite::memory:'`, no `schema`) it deletes every row of every table instead.
 - `request(app, endpoint, { as, body, params, query, headers })` signs the request in as `as`, with the
   app's `signTestToken` when it has one. `authHeader(userId)` is the header of a Readable JWT.
-- Limits are counted in Redis: spy on `rateLimitStore.incr` from `@pollium/readable/testing/rate-limit` to
-  let every request in, or to answer one past the limit.
-- Session cutoffs live in Redis: spy on `sessionCutoffs.cutoffOf` and `sessionCutoffs.cut` from
-  `@pollium/readable/auth/sessions` to keep them in memory. Install spies before each test when a suite
-  calls `vi.restoreAllMocks()`.
+- Limits are counted in Redis when the app has it: spy on `rateLimitStore.incr` from
+  `@pollium/readable/testing/rate-limit` to let every request in, or to answer one past the limit. Without
+  Redis they are counted in memory, and `memoryRateLimitStore.incr` is the one to spy on.
+- Session cutoffs live in Redis when the app has it and in memory (`MemorySessionCutoffStore`) otherwise.
+  Spy on `sessionCutoffs.cutoffOf` and `sessionCutoffs.cut` from `@pollium/readable/auth/sessions` to keep
+  a Redis app's in memory. Install spies before each test when a suite calls `vi.restoreAllMocks()`.
 
 ## Things that will otherwise burn an hour
 
 - **`SyntaxError: Invalid or unexpected token` on a decorator at boot** means Vite is not running readable,
   so discovery handed a TypeScript file to Node. The app's `vite.config.ts` must be `readableConfig()`.
+- **`[MISSING_EXPORT]` or an undefined import in a build** is an interface imported without `import type`.
+  readableConfig shims it for `vite build` as Vitest does; a config of the app's own must set
+  `build.rollupOptions.shimMissingExports`, or the import must say `import type`.
 - **An endpoint's path is absolute.** Only paths a controller writes as strings get the `/<module>` prefix.
 - **The Dockerfile copies the api package and the shared contracts, nothing else.** Keep `tsconfig.json`
   extending `@pollium/readable/tsconfig.json`, which comes with `node_modules`, and never a file beside

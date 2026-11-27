@@ -1,9 +1,9 @@
 import { ClassMetadata } from '../app/metadata';
-import { createRedis } from '../app/redis';
 import { readableConfig } from '../app/config';
 import { logger } from '../app/logger';
 import { EventError } from '../app/errors';
-import { Redis } from 'ioredis';
+import { Transport } from './Transport';
+import { hasChosenTransport, transport } from './transports';
 import { randomBytes } from 'node:crypto';
 
 export interface EventBinding{
@@ -29,9 +29,10 @@ const eventsByClass = new ClassMetadata<EventBinding>();
 class EventBus{
     #handlers = new Map<string, Handler[]>();
     #inFlight = new Set<Promise<unknown>>();
-    #publisher?: Redis;
-    #subscriber?: Redis;
-    #remote = process.env.VITEST === undefined;
+    // Under Vitest the bus stays in the process, so parallel test files never hear each other's events,
+    // unless the test chose a transport itself.
+    #underTest = process.env.VITEST !== undefined;
+    #listening?: object;
 
     subscribe(event: string, handler: Handler){
         const handlers = this.#handlers.get(event) ?? [];
@@ -57,10 +58,11 @@ class EventBus{
     }
 
     async close(){
-        await this.#publisher?.quit();
-        await this.#subscriber?.quit();
-        this.#publisher = undefined;
-        this.#subscriber = undefined;
+        this.#listening = undefined;
+    }
+
+    get #remote(): boolean{
+        return !this.#underTest || hasChosenTransport();
     }
 
     #dispatch(event: string, payload: unknown){
@@ -78,44 +80,49 @@ class EventBus{
 
     async #publish(event: string, payload: unknown){
         try{
-            this.#publisher ??= this.#connect();
             const envelope: Envelope = { origin, event, payload };
-            await this.#publisher.publish(this.#channel, JSON.stringify(envelope));
+            await transport().publish(this.#channel, JSON.stringify(envelope));
         }catch(error){
             logger.error('EventBus::PublishFailed', error);
         }
     }
 
+    // A round per listen: after close() the transport may still deliver to the old listener, which then
+    // stays quiet, so an event is never dispatched twice.
     #listen(){
-        if(this.#subscriber) return;
+        if(this.#listening) return;
 
+        let target: Transport;
         try{
-            this.#subscriber = this.#connect();
+            target = transport();
         }catch{
             return;
         }
 
-        void this.#subscriber.subscribe(this.#channel);
-        this.#subscriber.on('message', (_channel: string, message: string) => {
-            let envelope: Envelope;
-            try{
-                envelope = JSON.parse(message) as Envelope;
-            }catch(error){
-                logger.error('EventBus::InvalidEnvelope', error);
-                return;
-            }
-
-            if(envelope.origin === origin) return;
-            this.#dispatch(envelope.event, envelope.payload);
+        const round = {};
+        this.#listening = round;
+        void target.subscribe(this.#channel, (message) => {
+            if(this.#listening === round) this.#receive(message);
+        }).catch((error: unknown) => {
+            logger.error('EventBus::SubscribeFailed', error);
         });
+    }
+
+    #receive(message: string){
+        let envelope: Envelope;
+        try{
+            envelope = JSON.parse(message) as Envelope;
+        }catch(error){
+            logger.error('EventBus::InvalidEnvelope', error);
+            return;
+        }
+
+        if(envelope.origin === origin) return;
+        this.#dispatch(envelope.event, envelope.payload);
     }
 
     get #channel(): string{
         return `${readableConfig().name}:events`;
-    }
-
-    #connect(): Redis{
-        return createRedis();
     }
 }
 
