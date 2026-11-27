@@ -25,10 +25,14 @@ const isAncestor = (path: string, of: string): boolean => of.startsWith(`${path}
 const patternOf = ({ path }: Resource): RegExp =>
     new RegExp(`^${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/:\w+/g, '[^/]+')}$`);
 
-export const invalidate = (...resources: readonly Resource[]): Promise<void> => {
+const matching = (resources: readonly Resource[]) => {
     const patterns = resources.map(patternOf);
-    return cache.refresh((path) => patterns.length === 0 || patterns.some((pattern) => pattern.test(path)));
+    return (path: string) => patterns.length === 0 || patterns.some((pattern) => pattern.test(path));
 };
+
+export const invalidate = (...resources: readonly Resource[]): Promise<void> => cache.refresh(matching(resources));
+
+export const markStale = (...resources: readonly Resource[]): void => cache.markStale(matching(resources));
 
 export const refreshAfter = (
     method: string,
