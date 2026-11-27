@@ -37,7 +37,12 @@ export const GatewayErrors = {
         MissingChannel: 500,
         MalformedFrame: 400,
         UnknownMessageType: 400,
-        Internal: 500
+        Internal: 500,
+        DuplicateMessageType: 500,
+        ConflictingOptions: 500,
+        Timeout: 504,
+        Closed: 503,
+        QueueFull: 503
     }
 } as const satisfies ErrorTable;
 
