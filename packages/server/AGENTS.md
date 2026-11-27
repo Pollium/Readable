@@ -44,6 +44,7 @@ listen(readable());
 | Variable | Read as |
 |---|---|
 | `PORT`, `DATABASE_URL`, `REDIS_HOST`, `REDIS_PORT` | required |
+| `DATABASE_URL=sqlite:<path>`, `sqlite::memory:` | SQLite through better-sqlite3, which the app installs; any other URL is Postgres |
 | `DATABASE_SCHEMA` | the Postgres schema, `public` when unset |
 | `DATABASE_SYNCHRONIZE` | `false` turns synchronize off; it is on otherwise |
 | `JWT_SECRET` | needed by anything that signs or verifies a session |
@@ -54,6 +55,11 @@ listen(readable());
 Options: `name` (instead of the package scope), `folders` (instead of `['modules']`), `timestamptz`,
 `migrations`, `publicPaths` (paths any origin may call, without credentials), `plugins`, `afterDatabase`,
 `afterMount`, `root` (instead of the working directory).
+
+- `database`: more TypeORM options, as `{ poolSize, applicationName, logging, invalidWhereValuesBehavior:
+  { null: 'ignore', undefined: 'ignore' } }`, on either dialect. Readable's own keys win (`type`, `url`,
+  `database`, `entities`, `migrations`, `synchronize`, `schema`), and a `prepareDatabase` runs after
+  Readable's own on SQLite. `createDataSource(config, entities, migrations, options)` takes the same.
 
 `readableConfig(overrides)` is the whole Vite config: body validation, typia, the `@` and `@tests`
 aliases, tests under `src/**/*.test.ts` with `tests/setup.ts` when it exists, and readable itself run
@@ -164,11 +170,26 @@ export default class Note extends BaseModel{
   Record (`Note.findOneBy`, `note.save()`).
 - `@Fk('User')` on `ownerId` adds the uuid column and a many-to-one `owner`.
 - `@Hidden()` keeps a column out of every answer.
+- `@JsonColumn(options)` is `jsonb` on Postgres and `simple-json` on SQLite, read from `DATABASE_URL` when
+  the model's file is imported.
 - `database/queries` has `findOrThrow`, `isUniqueViolation`, `nextPosition`, `advisoryLock`, `countPerDay`,
-  `recentDates` and `tableRef`.
+  `recentDates` and `tableRef`, on both dialects.
 - With synchronize on, a column whose type changes is dropped and added again, and every row loses its
   value. `createdAt` and `updatedAt` are `timestamp`; an app whose tables already hold `timestamptz` passes
   `readable({ timestamptz: true })`, and never drops it.
+
+On SQLite:
+
+- Each connection gets a `uuidv7()` SQL function, so the id's default works there too.
+- The root manager's transactions (`dataSource.transaction`, `Model.getRepository().manager.transaction`)
+  run one at a time on the one connection; a transaction opened inside one goes through the manager it was
+  handed and is a savepoint. Opening one through the root manager from inside another waits forever.
+- `advisoryLock` does nothing, since transactions already run one at a time; `isUniqueViolation`
+  recognises SQLite's unique and primary key errors; `recentDates` and `countPerDay` count days in UTC.
+- `DATABASE_SCHEMA` and `timestamptz` are ignored, and dates are `datetime`.
+- Insert entities made with `create()` or `new`, which carry their id. `insert({ ... })` of a plain object
+  without an id fails there: TypeORM reads the new row back by its id on SQLite, and it has none.
+- A table whose name starts with `sqlite_` is refused, so no model is called `Sqlite...`.
 
 ## Events, queues, gateways
 
@@ -243,6 +264,7 @@ describe('NoteController', () => {
 ```
 
 - `useApp` builds the app once per file, truncates the schema before each test and stubs `BaseQueue.add`.
+  On SQLite (`DATABASE_URL: 'sqlite::memory:'`, no `schema`) it deletes every row of every table instead.
 - `request(app, endpoint, { as, body, params, query, headers })` signs the request in as `as`.
 - Limits are counted in Redis: spy on `rateLimitStore.incr` from `@pollium/readable/testing/rate-limit` to
   let every request in, or to answer one past the limit.
