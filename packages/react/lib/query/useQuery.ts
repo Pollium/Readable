@@ -1,5 +1,6 @@
 import { useSession } from '../session/session';
-import { cache } from './cache';
+import { cache, Retry } from './cache';
+import { poll } from './poll';
 import { filled, isReady, keyOf, QueryTarget, sourceOf } from './source';
 import { Endpoint } from '@pollium/readable-contracts/routing';
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
@@ -7,6 +8,7 @@ import { useCallback, useEffect, useSyncExternalStore } from 'react';
 export interface Query<T, O = T>{
     data: T | null;
     loading: boolean;
+    fetching: boolean;
     error: Error | undefined;
     reload: () => void;
     set: (data: O) => void;
@@ -14,11 +16,17 @@ export interface Query<T, O = T>{
 
 export type Upstream = Pick<Query<unknown>, 'data' | 'loading' | 'error' | 'reload'>;
 
+export type Poll<O> = number | false | ((data: O | null) => number | false);
+
 export interface QueryOptions<O, T>{
     select?: (data: O) => T;
     enabled?: boolean;
     fresh?: boolean;
     dependsOn?: Upstream | readonly Upstream[];
+    staleMs?: number;
+    keepMs?: number;
+    pollMs?: Poll<O>;
+    retry?: Retry;
 }
 
 export type Pending = false | null | undefined | '' | 0;
@@ -40,7 +48,7 @@ export const prefetch = <I, O>(endpoint: Endpoint<I, O>, given: QueryTarget<I> =
 export const useQuery = <I, O, T = O>(
     endpoint: Endpoint<I, O>,
     given: QueryTarget<I> | Pending = {} as QueryTarget<I>,
-    { select, enabled = true, fresh = false, dependsOn }: QueryOptions<O, T> = {}
+    { select, enabled = true, fresh = false, dependsOn, staleMs = 30_000, keepMs, pollMs = false, retry }: QueryOptions<O, T> = {}
 ): Query<T, O> => {
     const target = given && filled(given);
     const upstream = [dependsOn ?? []].flat();
@@ -49,7 +57,7 @@ export const useQuery = <I, O, T = O>(
     const ready = enabled && failed === undefined && !waiting && Boolean(target) && isReady(endpoint, target || {});
     const key = ready ? keyOf(endpoint, target || {}) : null;
 
-    if(key !== null) cache.ensure(key, sourceOf(endpoint, target || {}));
+    if(key !== null) cache.ensure(key, sourceOf(endpoint, target || {}), { keepMs, retry });
 
     const subscribe = useCallback(
         (listener: () => void) => key === null ? unsubscribed : cache.subscribe(key, listener),
@@ -58,9 +66,17 @@ export const useQuery = <I, O, T = O>(
     const snapshot = useSyncExternalStore(subscribe, () => cache.snapshot(key), () => cache.snapshot(key));
     const token = useSession();
 
+    const maxAge = fresh ? 0 : staleMs;
     useEffect(() => {
-        if(key !== null) void cache.fetch(key, { maxAge: fresh ? 0 : 30_000 });
-    }, [key, token, fresh]);
+        if(key !== null) void cache.fetch(key, { maxAge });
+    }, [key, token, maxAge]);
+
+    const data = snapshot.landed && snapshot.data !== undefined ? snapshot.data as O : null;
+    const every = typeof pollMs === 'function' ? pollMs(data) : pollMs;
+    useEffect(() => {
+        if(key === null || every === false || every <= 0 || snapshot.fetching) return;
+        return poll(key, every);
+    }, [key, every, snapshot]);
 
     const upstreamReload = failed?.reload;
     const reload = useCallback(() => {
@@ -71,11 +87,10 @@ export const useQuery = <I, O, T = O>(
         if(key !== null) cache.set(key, value);
     }, [key]);
 
-    const data = snapshot.landed && snapshot.data !== undefined ? snapshot.data as O : null;
-
     return {
         data: data === null ? null : select === undefined ? data as O & T : select(data),
         loading: waiting || (ready && (snapshot.fetching || (!snapshot.landed && snapshot.error === undefined))),
+        fetching: ready && snapshot.fetching,
         error: failed?.error ?? (ready ? snapshot.error : undefined),
         reload,
         set

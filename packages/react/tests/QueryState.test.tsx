@@ -9,6 +9,7 @@ type Notes = string[];
 const query = (state: Partial<Query<Notes>>): Query<Notes> => ({
     data: null,
     loading: false,
+    fetching: false,
     error: undefined,
     reload: vi.fn(),
     set: vi.fn(),
