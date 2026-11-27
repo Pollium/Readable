@@ -189,7 +189,9 @@ listen(readable());
 `readable()` reads `PORT`, `DATABASE_URL`, `REDIS_HOST`, `REDIS_PORT`, `JWT_SECRET`, `CORS_ORIGIN` and
 `STORAGE_*` from the environment and mounts everything under `src/modules`. A new module never touches
 this file. Compression, request logging, `/health`, error answers, the websocket for gateways, graceful
-shutdown and the store behind `@RateLimit` come with it.
+shutdown and the store behind `@RateLimit` come with it. `DATABASE_URL` may be Postgres or
+`sqlite:<path>`, and Redis is optional: without it, events travel on Postgres or in the process, and
+limits are counted in memory.
 
 ## The web
 
