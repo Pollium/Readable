@@ -77,8 +77,8 @@ const lazyElement = (load: Page['load']): ReactElement => {
 
 const depthOf = (path: string): number => path.split('/').filter(Boolean).length;
 
-const owns = (layout: Page, page: Page): boolean => page.path === layout.path
-    || (page.path.startsWith(`${layout.path === '/' ? '' : layout.path}/`) && depthOf(page.path) === depthOf(layout.path) + 1);
+const holds = (folder: string, path: string): boolean =>
+    folder === '/' || path === folder || path.startsWith(`${folder}/`);
 
 const relative = (path: string, parent: string | null): string =>
     parent === null || parent === '/' ? path.replace(/^\//, '') : path.slice(parent.length + 1);
@@ -90,17 +90,25 @@ const routeOf = (page: Page, parent: string | null): RouteObject => {
         : { path, element: lazyElement(page.load) };
 };
 
+// A layout frames every page in its folder and below it. When layouts sit inside each other, a page is
+// framed by the deepest one that holds it, inside the ones above that.
 export const routesOf = (pages: readonly Page[]): RouteObject[] => {
     const layouts = pages.filter((page) => page.kind === 'layout');
-    const owned = pages.filter((page) => page.kind === 'page');
-    const ownerOf = (page: Page) => layouts.find((layout) => owns(layout, page));
+    const frameOf = (page: Page): Page | undefined => layouts
+        .filter((layout) => holds(layout.path, page.path) && (page.kind === 'page' || layout.path !== page.path))
+        .sort((a, b) => depthOf(b.path) - depthOf(a.path))[0];
 
-    return [
-        ...owned.filter((page) => ownerOf(page) === undefined).map((page) => routeOf(page, null)),
-        ...layouts.map((layout) => ({
-            path: layout.path.replace(/^\//, ''),
-            element: lazyElement(layout.load),
-            children: owned.filter((page) => ownerOf(page) === layout).map((page) => routeOf(page, layout.path))
-        }))
-    ];
+    const framedBy = (parent: Page | undefined): RouteObject[] => {
+        const parentPath = parent?.path ?? null;
+        return [
+            ...pages.filter((page) => page.kind === 'page' && frameOf(page) === parent).map((page) => routeOf(page, parentPath)),
+            ...layouts.filter((layout) => frameOf(layout) === parent).map((layout) => ({
+                path: relative(layout.path, parentPath),
+                element: lazyElement(layout.load),
+                children: framedBy(layout)
+            }))
+        ];
+    };
+
+    return framedBy(undefined);
 };

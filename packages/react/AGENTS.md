@@ -63,12 +63,14 @@ A page is the default export of an `index.tsx`, and its folder is its path:
 | `modules/notes/pages/protected/index.tsx` | `/` |
 | `modules/notes/pages/protected/notes/[noteId]/index.tsx` | `/notes/:noteId` |
 | `modules/auth/pages/guest/signIn/index.tsx` | `/sign-in` |
-| `modules/notes/pages/protected/notes/layout.tsx` | the frame of `/notes` and of the pages one folder below it |
+| `modules/notes/pages/protected/notes/layout.tsx` | the frame of `/notes` and of every page below it |
 
 - A guest who opens a protected page is sent to `signIn?next=<where they were going>`, and back there once
   the session starts. A signed-in user on a guest page goes to `next`, or `home`.
 - Every page loads when it is first opened. `prefetchPage(path)` from `pages/prefetch` loads it before,
   for a link the user is about to follow.
+- A layout frames every page of its tier in its folder and the folders below it, from any module. A layout
+  in a folder below another sits inside it, and a page is framed by the deepest layout that holds it.
 - Two pages at the same path of a tier stop the app at boot with `Page::DuplicatePath`.
 
 ## Queries
