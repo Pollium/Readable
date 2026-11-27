@@ -76,6 +76,15 @@ const parseValue = (raw: unknown, defaultValue: number, minimum: number): number
     return value;
 };
 
+const offsetOf = (raw: Record<string, unknown>, limit: number): number => {
+    if(raw.page === undefined) return parseValue(raw.offset, 0, 0);
+    if(raw.offset !== undefined) throw RequestError.InvalidPagination();
+
+    const offset = (parseValue(raw.page, 1, 1) - 1) * limit;
+    if(!Number.isSafeInteger(offset)) throw RequestError.InvalidPagination();
+    return offset;
+};
+
 export const parsePagination = (query: unknown, options?: PaginationOptions): Page => {
     const raw = (query ?? {}) as Record<string, unknown>;
 
@@ -83,11 +92,10 @@ export const parsePagination = (query: unknown, options?: PaginationOptions): Pa
         parseValue(raw.limit, options?.defaultLimit ?? 50, 1),
         options?.maxLimit ?? 100
     );
-    const offset = parseValue(raw.offset, 0, 0);
 
     return {
         limit,
-        offset
+        offset: offsetOf(raw, limit)
     };
 };
 
