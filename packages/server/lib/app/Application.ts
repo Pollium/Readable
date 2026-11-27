@@ -63,9 +63,10 @@ export default class Application{
             pretty: this.#options.log.pretty
         });
         this.#app = Fastify({
-            loggerInstance: logger.raw as FastifyBaseLogger,
+            trustProxy: ['loopback', 'linklocal', 'uniquelocal'],
             logController: new LogController({ disableRequestLogging: true }),
-            trustProxy: ['loopback', 'linklocal', 'uniquelocal']
+            ...this.#options.fastify,
+            loggerInstance: logger.raw as FastifyBaseLogger
         });
 
         await this.#app.register(cors, {
@@ -107,7 +108,7 @@ export default class Application{
 
     async start(){
         await this.build();
-        await this.#app.listen({ port: this.#options.port, host: '0.0.0.0' });
+        await this.#app.listen({ port: this.#options.port, host: this.#options.host ?? '0.0.0.0' });
     }
 
     async stop(){
