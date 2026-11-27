@@ -8,6 +8,7 @@ export interface ChannelOptions{
     maxPayload?: number;
     pingIntervalMs?: number;
     compression?: boolean | { threshold?: number };
+    refusal?: 'http' | 'close';
 }
 
 export interface ChannelDeclaration{
