@@ -102,6 +102,12 @@ class DuplicateGateway extends BaseGateway{
     }
 }
 
+@Channel('/hall', { pingIntervalMs: 1000 })
+class PingingGateway extends BaseGateway{}
+
+@Channel('/hall', { pingIntervalMs: 5000 })
+class OtherPingingGateway extends BaseGateway{}
+
 const boots = (gateways: Array<new () => BaseGateway>) => new Application({
     port: 0,
     corsOrigins: [],
@@ -194,5 +200,9 @@ describe('gateways that share a channel', () => {
 
     it('stop the boot when two of them take the same message type', async () => {
         await expect(boots([TicketGateway, DuplicateGateway])).rejects.toThrow('Gateway::DuplicateMessageType:/hall:ticket');
+    });
+
+    it('stop the boot when they ask for different channel options', async () => {
+        await expect(boots([PingingGateway, OtherPingingGateway])).rejects.toThrow('Gateway::ConflictingOptions:/hall:pingIntervalMs');
     });
 });

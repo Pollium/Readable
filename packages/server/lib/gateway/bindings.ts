@@ -4,8 +4,15 @@ import { Frame } from '@pollium/readable-contracts/gateway';
 import { FastifyRequest } from 'fastify';
 import type { LiveConnection } from './Connection';
 
+export interface ChannelOptions{
+    maxPayload?: number;
+    pingIntervalMs?: number;
+    compression?: boolean | { threshold?: number };
+}
+
 export interface ChannelDeclaration{
     path: string;
+    options: ChannelOptions;
 }
 
 export interface Binding{
@@ -26,9 +33,9 @@ export const invocations = new WeakMap<FastifyRequest, Invocation>();
 
 export const channelOf = (ctor: object): ChannelDeclaration | undefined => channels.get(ctor);
 
-export const Channel = (path: string): ClassDecorator => {
+export const Channel = (path: string, options: ChannelOptions = {}): ClassDecorator => {
     return (target) => {
-        channels.set(target, { path });
+        channels.set(target, { path, options });
     };
 };
 

@@ -18,9 +18,11 @@ export interface Connection<Data extends object = Record<string, unknown>>{
     readonly data: Data;
     readonly socket: WebSocket;
     readonly req: FastifyRequest;
+    readonly bufferedAmount: number;
     send(type: string, data?: unknown, bytes?: Uint8Array): boolean;
     request<T = unknown>(type: string, data?: unknown, options?: RequestOptions): Promise<T>;
     close(code?: number, reason?: string): void;
+    drained(): Promise<void>;
 }
 
 export const Connection = (): ParameterDecorator => createParamDecorator((req) => invocations.get(req)?.connection);
@@ -31,6 +33,11 @@ interface Pending{
     timer: ReturnType<typeof setTimeout> | undefined;
 }
 
+interface Waiter{
+    until: number;
+    resolve: () => void;
+}
+
 const DEFAULT_TIMEOUT_MS = 30_000;
 const PEER_ERROR_STATUS = 502;
 
@@ -38,12 +45,19 @@ export class LiveConnection<Data extends object = Record<string, unknown>> imple
     readonly id = randomUUID();
     readonly data = {} as Data;
     #lastId = 0;
+    #written = 0;
+    #flushed = 0;
+    #waiters: Waiter[] = [];
     readonly #pending = new Map<FrameId, Pending>();
 
     constructor(readonly socket: WebSocket, readonly req: FastifyRequest){}
 
     get principal(): Principal | undefined{
         return this.req.principal;
+    }
+
+    get bufferedAmount(): number{
+        return this.socket.bufferedAmount;
     }
 
     get isOpen(): boolean{
@@ -69,10 +83,18 @@ export class LiveConnection<Data extends object = Record<string, unknown>> imple
         this.socket.close(code, reason);
     }
 
+    // Resolves once every frame sent before the call has been handed to the network, so a sender
+    // that waits here never holds more than it chose to in memory.
+    drained(): Promise<void>{
+        if(this.#flushed >= this.#written || !this.isOpen) return Promise.resolve();
+        return new Promise((resolve) => this.#waiters.push({ until: this.#written, resolve }));
+    }
+
     write(raw: string | Uint8Array): boolean{
         if(!this.isOpen) return false;
 
-        this.socket.send(raw);
+        const sequence = ++this.#written;
+        this.socket.send(raw, () => this.#flush(sequence));
         return true;
     }
 
@@ -90,6 +112,7 @@ export class LiveConnection<Data extends object = Record<string, unknown>> imple
             this.#forget(id, pending);
             pending.reject(GatewayError.Closed());
         }
+        this.#flush(this.#written);
     }
 
     #expire(id: FrameId){
@@ -105,4 +128,12 @@ export class LiveConnection<Data extends object = Record<string, unknown>> imple
         if(pending.timer !== undefined) clearTimeout(pending.timer);
     }
 
+    #flush(sequence: number){
+        this.#flushed = Math.max(this.#flushed, sequence);
+        const waiting = this.#waiters;
+        this.#waiters = waiting.filter((waiter) => waiter.until > this.#flushed);
+        for(const waiter of waiting){
+            if(waiter.until <= this.#flushed) waiter.resolve();
+        }
+    }
 }

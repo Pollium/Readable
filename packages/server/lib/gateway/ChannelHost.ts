@@ -1,5 +1,5 @@
 import ConnectionsRegistry from './ConnectionRegistry';
-import { bindings, invocations } from './bindings';
+import { bindings, ChannelOptions, invocations } from './bindings';
 import { LiveConnection } from './Connection';
 import { GatewayError, RuntimeError } from '../app/errors';
 import { getClassMiddleware, MiddlewareFn } from '../http/middleware';
@@ -23,9 +23,40 @@ interface Handler{
     handlerName: string | symbol;
 }
 
+interface ServerOptions{
+    maxPayload?: number;
+    perMessageDeflate?: false | { threshold: number };
+}
+
+type WebSocketServer = FastifyInstance['websocketServer'];
+
 const REAUTHORIZE_MS = 30_000;
+const DEFLATE_THRESHOLD_BYTES = 1024;
 
 const hosts = new WeakMap<object, Map<string, ChannelHost>>();
+const upgrading = new WeakMap<object, ChannelHost>();
+const patched = new WeakSet<WebSocketServer>();
+
+// One ws server serves every route, so a channel's limit and compression are put on it for the
+// length of its own handshake, which ws completes synchronously.
+const patch = (wss: WebSocketServer) => {
+    if(patched.has(wss)) return;
+    patched.add(wss);
+
+    const handleUpgrade = wss.handleUpgrade.bind(wss);
+    wss.handleUpgrade = (request, socket, head, done) => {
+        const overrides = upgrading.get(request)?.serverOptions();
+        if(overrides === undefined) return handleUpgrade(request, socket, head, done);
+
+        const previous = { maxPayload: wss.options.maxPayload, perMessageDeflate: wss.options.perMessageDeflate };
+        Object.assign(wss.options, overrides);
+        try{
+            handleUpgrade(request, socket, head, done);
+        }finally{
+            Object.assign(wss.options, previous);
+        }
+    };
+};
 
 export const hostFor = (app: FastifyInstance, path: string, registry: ConnectionsRegistry): ChannelHost => {
     const paths = hosts.get(app.server) ?? new Map<string, ChannelHost>();
@@ -45,6 +76,7 @@ export class ChannelHost{
     readonly #path: string;
     readonly #gateways: BaseGateway[] = [];
     readonly #handlers = new Map<string, Handler>();
+    readonly #options: ChannelOptions = {};
     readonly #authorizations = new WeakMap<FastifyRequest, () => Promise<void>>();
 
     constructor(path: string, registry: ConnectionsRegistry){
@@ -52,7 +84,8 @@ export class ChannelHost{
         this.registry = registry;
     }
 
-    add(gateway: BaseGateway){
+    add(gateway: BaseGateway, options: ChannelOptions){
+        this.#merge(options);
         for(const binding of bindings.get(gateway.constructor)){
             if(binding.event !== 'message' || binding.type === undefined) continue;
             if(this.#handlers.has(binding.type)) throw GatewayError.DuplicateMessageType(`${this.#path}:${binding.type}`);
@@ -68,7 +101,26 @@ export class ChannelHost{
         }, (socket, req) => this.#accept(socket, req));
     }
 
+    serverOptions(): ServerOptions | undefined{
+        const { maxPayload, compression } = this.#options;
+        if(maxPayload === undefined && compression === undefined) return undefined;
+
+        const options: ServerOptions = {};
+        if(maxPayload !== undefined) options.maxPayload = maxPayload;
+        if(compression !== undefined){
+            options.perMessageDeflate = compression === false
+                ? false
+                : { threshold: compression === true ? DEFLATE_THRESHOLD_BYTES : compression.threshold ?? DEFLATE_THRESHOLD_BYTES };
+        }
+        return options;
+    }
+
     async #admit(req: FastifyRequest, reply: FastifyReply){
+        if(this.serverOptions() !== undefined){
+            patch(req.server.websocketServer);
+            upgrading.set(req.raw, this);
+        }
+
         const guards = this.#guards();
         const authorize = async () => {
             for(const guard of guards) await guard(req, reply);
@@ -112,6 +164,20 @@ export class ChannelHost{
             void this.#reauthorize(connection);
         }, REAUTHORIZE_MS);
         stops.push(() => clearInterval(reauthorizing));
+
+        const { pingIntervalMs } = this.#options;
+        if(pingIntervalMs !== undefined && pingIntervalMs > 0){
+            let answered = true;
+            socket.on('pong', () => {
+                answered = true;
+            });
+            const pinging = setInterval(() => {
+                if(!answered) return socket.terminate();
+                answered = false;
+                socket.ping();
+            }, pingIntervalMs);
+            stops.push(() => clearInterval(pinging));
+        }
 
         return stops;
     }
@@ -208,6 +274,17 @@ export class ChannelHost{
             for(const guard of getClassMiddleware(gateway.constructor)) guards.add(guard);
         }
         return [...guards];
+    }
+
+    #merge(options: ChannelOptions){
+        for(const [key, value] of Object.entries(options) as Array<[keyof ChannelOptions, unknown]>){
+            if(value === undefined) continue;
+            const current = this.#options[key];
+            if(current !== undefined && JSON.stringify(current) !== JSON.stringify(value)){
+                throw GatewayError.ConflictingOptions(`${this.#path}:${key}`);
+            }
+            Object.assign(this.#options, { [key]: value });
+        }
     }
 
 }
