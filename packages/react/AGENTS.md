@@ -284,6 +284,31 @@ const form = useForm(roadmapRoutes.createStep, {
   changes what it shows when its link no longer works.
 - The messages for a field are in English; `copy.fields` in `mount` replaces them.
 
+A form with no endpoint hands its values to its own `submit`, and is validated only by the `validate` it
+is given:
+
+```ts
+const probe = useForm({
+    initial: { url: '' },
+    validate: typia.createValidate<EndpointInput>(),
+    submit: ({ url }) => probeHealth(url),
+    onDone: (health) => onConnected(health)
+});
+```
+
+- What `submit` throws is handled as an endpoint's error: an `ApiError`'s fields land on their fields,
+  anything else is `submitError`. With no `submit`, a valid submit only calls `onDone(undefined, values)`.
+- `validateField(name)` and `validateFields(['fullName', 'password'])` check those fields now, show their
+  errors, leave the others' alone and answer whether they passed: one step of a form at a time.
+  `validateFields()` checks them all.
+- `handleSubmit(event, { submit, fields })` submits once through another action and checks only `fields`,
+  for a step with its own request or a second button. It does not refresh what the endpoint would; the
+  form's `onDone` and `onFail` still run.
+- `values` and `watch(name)` are the values now; `watch()` is all of them.
+- `reset(values)` starts the form again from `values`, and a later `reset()` goes back to them.
+- `setFieldError(name, message)` puts the app's own message on a field, until the field next changes;
+  `null` takes it off.
+
 ## Session
 
 `session.start(token)` signs in, `session.end()` signs out, and `useSession()` renders again on each. The
@@ -311,7 +336,8 @@ gateway. A test renders a page or a hook with `@testing-library/react`.
 - **`useQuery(endpoint, undefined)` is `useQuery(endpoint)`.** For an endpoint with no params, wait with
   `enabled`, not with a falsy target.
 - **A form is validated only when written `useForm(contract.endpoint, { ... })`**, with the endpoint
-  named and the options inline. Anything else gets no validator, and the server still refuses.
+  named and the options inline. Anything else, a form with no endpoint too, gets no validator unless it
+  is given `validate`, and the server still refuses.
 - **`typia` must be a dependency of the web.** The plugin writes `import typia from 'typia'` into the
   web's own files.
 - **The handlers of `useChannel` are read once, when it mounts.** A handler added later is never called;
