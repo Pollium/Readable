@@ -71,16 +71,16 @@ describe('Application CORS with CORS_ORIGIN=*', () => {
         expect(res.headers).toMatchObject({
             'access-control-allow-origin': 'http://localhost:5173',
             'access-control-allow-credentials': 'true',
-            'access-control-expose-headers': 'ETag, Content-Length'
+            'access-control-expose-headers': 'x-trace-id, ETag, Content-Length'
         });
         expect(preflight.headers['access-control-allow-origin']).toBe('https://desktop.volt');
     });
 });
 
 describe('Application CORS without exposed headers', () => {
-    it('exposes none, as before', async () => {
+    it('exposes only the trace id', async () => {
         const res = await app.inject({ method: 'GET', url: '/private', headers: { origin: 'https://app.example' } });
 
-        expect(res.headers['access-control-expose-headers']).toBeUndefined();
+        expect(res.headers['access-control-expose-headers']).toBe('x-trace-id');
     });
 });
