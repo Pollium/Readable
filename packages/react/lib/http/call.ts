@@ -1,8 +1,9 @@
-import { settings } from '../app/config';
+import { OutgoingRequest, settings } from '../app/config';
 import { session } from '../session/session';
+import { parsed, refusal, unwrap } from './answer';
 import { ApiError } from './ApiError';
-import { AuthErrors, baseCodeOf, defineErrors } from '@pollium/readable-contracts/errors';
-import { ApiError as ErrorBody, ApiResponse, PageOf } from '@pollium/readable-contracts/http';
+import { Deadline, deadlineOf } from './deadline';
+import { defineErrors } from '@pollium/readable-contracts/errors';
 import { Endpoint } from '@pollium/readable-contracts/routing';
 
 export type PathValues = Readonly<Record<string, string | number | undefined>>;
@@ -18,14 +19,39 @@ export type Body<I> = [I] extends [never]
     ? { body?: FormData }
     : undefined extends I ? { body?: I | FormData } : { body: I | FormData };
 
-export type CallArgs<I> = Target & Body<I> & {
+export type AnswerKind = 'json' | 'text' | 'blob' | 'arrayBuffer' | 'response';
+
+export type AnswerOf<A extends AnswerKind, O> =
+    A extends 'text' ? string
+        : A extends 'blob' ? Blob
+            : A extends 'arrayBuffer' ? ArrayBuffer
+                : A extends 'response' ? Response
+                    : O;
+
+export type RawBody = Blob | ArrayBuffer | ArrayBufferView | URLSearchParams;
+
+type SentBody<I> = [I] extends [never]
+    ? { body?: FormData | RawBody }
+    : undefined extends I ? { body?: I | FormData | RawBody } : { body: I | FormData | RawBody };
+
+// A body the caller encoded itself, such as a document too large for the api to take as JSON.
+interface EncodedBody{
+    body: string;
+    contentType: string;
+}
+
+export type CallArgs<I, A extends AnswerKind = 'json'> = Target & (SentBody<I> | EncodedBody) & {
+    contentType?: string;
     signal?: AbortSignal;
     keepalive?: boolean;
+    timeoutMs?: number;
+    credentials?: RequestCredentials;
+    as?: A;
 };
 
-export type ArgsOf<I> = [I] extends [never]
-    ? [args?: CallArgs<I>]
-    : undefined extends I ? [args?: CallArgs<I>] : [args: CallArgs<I>];
+export type ArgsOf<I, A extends AnswerKind = 'json'> = [I] extends [never]
+    ? [args?: CallArgs<I, A>]
+    : undefined extends I ? [args?: CallArgs<I, A>] : [args: CallArgs<I, A>];
 
 const CallErrors = defineErrors({
     domain: 'Call',
@@ -36,19 +62,28 @@ const CallErrors = defineErrors({
 
 const PARAM = /:(\w+)/g;
 
-const ENDS_SESSION = Object.entries(AuthErrors.causes)
-    .filter(([, status]) => status === 401)
-    .map(([cause]) => `${AuthErrors.domain}::${cause}`);
+// A param the call leaves out, or gives as undefined, takes the app's default, such as the team the
+// user has open.
+export const filledPath = (values: PathValues = {}): PathValues => {
+    const defaults = settings().pathDefaults;
+    if(defaults === null) return values;
 
-export const isComplete = (template: string, values: PathValues = {}): boolean =>
-    [...template.matchAll(PARAM)].every(([, name]) => values[name] !== undefined);
+    return { ...defaults(), ...Object.fromEntries(Object.entries(values).filter(([, value]) => value !== undefined)) };
+};
 
-export const pathOf = (template: string, values: PathValues = {}): string =>
-    template.replace(PARAM, (_, name: string) => {
-        const value = values[name];
+export const isComplete = (template: string, values?: PathValues): boolean => {
+    const filled = filledPath(values);
+    return [...template.matchAll(PARAM)].every(([, name]) => filled[name] !== undefined);
+};
+
+export const pathOf = (template: string, values?: PathValues): string => {
+    const filled = filledPath(values);
+    return template.replace(PARAM, (_, name: string) => {
+        const value = filled[name];
         if(value === undefined) throw CallErrors.MissingPathParam(`${name}@${template}`);
         return encodeURIComponent(value);
     });
+};
 
 const textOf = (value: unknown): string => value instanceof Date ? value.toISOString() : String(value);
 
@@ -67,60 +102,89 @@ export const searchOf = (query: object = {}): string => {
 export const urlOf = (endpoint: Pick<Endpoint, 'path'>, { base, path, query }: Target = {}): string =>
     `${(base ?? settings().apiUrl).replace(/\/+$/, '')}${pathOf(endpoint.path, path)}${searchOf(query)}`;
 
-const isJson = (body: unknown): boolean => body !== undefined && !(body instanceof FormData);
+type Encoding = 'none' | 'form' | 'raw' | 'json';
 
-const headersOf = (body: unknown, token: string | null): Record<string, string> => ({
-    ...(isJson(body) ? { 'Content-Type': 'application/json' } : {}),
-    ...(token === null ? {} : { Authorization: `Bearer ${token}` })
-});
+const isRaw = (body: unknown): boolean => body instanceof Blob || body instanceof ArrayBuffer
+    || ArrayBuffer.isView(body) || body instanceof URLSearchParams;
 
-const unwrap = (payload: unknown): unknown => {
-    const answer = payload as ApiResponse<unknown> | undefined;
-    if(!answer?.meta) return answer?.data;
+const encodingOf = (body: unknown, contentType: string | undefined): Encoding => {
+    if(body === undefined) return 'none';
+    if(body instanceof FormData) return 'form';
+    if(isRaw(body) || (typeof body === 'string' && contentType !== undefined)) return 'raw';
+    return 'json';
+};
+
+const isContentType = (name: string): boolean => name.toLowerCase() === 'content-type';
+
+// FormData never takes a Content-Type: fetch writes it with the boundary of the parts.
+export const headersOf = (
+    encoding: Encoding,
+    contentType: string | undefined,
+    token: string | null,
+    headers: Readonly<Record<string, string>> = {}
+): Record<string, string> => {
+    const given = Object.entries(headers).find(([name]) => isContentType(name))?.[1];
+    const type = encoding === 'form' ? undefined : given ?? contentType ?? (encoding === 'json' ? 'application/json' : undefined);
 
     return {
-        items: answer.data as unknown[],
-        meta: answer.meta
-    } satisfies PageOf<unknown>;
+        ...(type === undefined ? {} : { 'Content-Type': type }),
+        ...(token === null ? {} : { Authorization: `Bearer ${token}` }),
+        ...Object.fromEntries(Object.entries(headers).filter(([name]) => !isContentType(name)))
+    };
 };
 
-const payloadOf = async (response: Response): Promise<unknown> => {
-    const text = await response.text().catch(() => '');
-    if(text === '') return undefined;
+const payloadOf = async (response: Response): Promise<unknown> => parsed(await response.text().catch(() => ''));
 
-    try{
-        return JSON.parse(text);
-    }catch{
-        return undefined;
+const answerOf = async (response: Response, as: AnswerKind): Promise<unknown> => {
+    switch(as){
+        case 'response': return response;
+        case 'text': return response.text();
+        case 'blob': return response.blob();
+        case 'arrayBuffer': return response.arrayBuffer();
+        default: return unwrap(parsed(await response.text()));
     }
 };
 
-const send = async (url: string, init: RequestInit): Promise<Response> => {
+const failure = (cause: unknown, deadline: Deadline, signal: AbortSignal | undefined): unknown => {
+    if(deadline.expired()) return new ApiError(0, 'Network::Timeout', undefined, { cause });
+    if(signal?.aborted) return cause;
+    return new ApiError(0, 'Network::Unreachable', undefined, { cause });
+};
+
+// The deadline covers the answer's body too, except for a Response handed back unread.
+const answered = async (url: string, init: RequestInit, as: AnswerKind, deadline: Deadline, signal?: AbortSignal) => {
     try{
-        return await fetch(url, init);
+        const response = await fetch(url, init);
+        return { response, answer: response.ok ? await answerOf(response, as) : undefined };
     }catch(cause: unknown){
-        if(init.signal?.aborted) throw cause;
-        throw new ApiError(0, 'Network::Unreachable', undefined, { cause });
+        throw failure(cause, deadline, signal);
+    }finally{
+        deadline.clear();
     }
 };
 
-export const request = async (endpoint: Pick<Endpoint, 'method' | 'path'>, args: CallArgs<unknown> = {}): Promise<unknown> => {
-    const { base, path, query, headers, body, signal, keepalive } = args;
+export const request = async (endpoint: Pick<Endpoint, 'method' | 'path'>, args: CallArgs<unknown, AnswerKind> = {}): Promise<unknown> => {
+    const { base, path, query, headers, body, contentType, signal, keepalive, timeoutMs, credentials, as = 'json' } = args;
+    const config = settings();
     const token = session.token;
-    const response = await send(urlOf(endpoint, { base, path, query }), {
+    const encoding = encodingOf(body, contentType);
+    const url = urlOf(endpoint, { base, path, query });
+    const init: OutgoingRequest = {
         method: endpoint.method,
-        headers: { ...headersOf(body, token), ...headers },
-        body: isJson(body) ? JSON.stringify(body) : body as FormData | undefined,
+        headers: headersOf(encoding, contentType, token, headers),
+        body: encoding === 'json' ? JSON.stringify(body) : body as BodyInit | undefined,
+        credentials: credentials ?? config.credentials,
         signal,
         keepalive
-    });
-    const payload = await payloadOf(response);
-    if(response.ok) return unwrap(payload);
+    };
+    if(config.onRequest !== null) await config.onRequest(init, url);
 
-    const code = (payload as ErrorBody | undefined)?.error ?? response.statusText;
-    if(response.status === 401 && token !== null && ENDS_SESSION.includes(baseCodeOf(code))) session.end(token);
-    throw new ApiError(response.status, code, payload);
+    const deadline = deadlineOf(init.signal ?? undefined, timeoutMs ?? config.timeoutMs);
+    const { response, answer } = await answered(url, { ...init, signal: deadline.signal }, as, deadline, init.signal ?? undefined);
+    if(response.ok) return answer;
+
+    throw refusal(response.status, response.statusText, await payloadOf(response), token);
 };
 
-export const call = <I, O>(endpoint: Endpoint<I, O>, ...[args]: ArgsOf<I>): Promise<O> =>
-    request(endpoint, args as CallArgs<unknown>) as Promise<O>;
+export const call = <I, O, const A extends AnswerKind = 'json'>(endpoint: Endpoint<I, O>, ...[args]: ArgsOf<I, A>): Promise<AnswerOf<A, O>> =>
+    request(endpoint, args as CallArgs<unknown, AnswerKind>) as Promise<AnswerOf<A, O>>;

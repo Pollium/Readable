@@ -1,29 +1,42 @@
-import { settings } from '../app/config';
+import { settings, WebSettings } from '../app/config';
 import { useSyncExternalStore } from 'react';
 
 type Listener = () => void;
 
-const keyOf = (): string => `${settings().name}.session`;
-
-const stored = (): string | null => {
+const stored = (key: string): string | null => {
     try{
-        return localStorage.getItem(keyOf());
+        return localStorage.getItem(key);
     }catch{
         return null;
     }
 };
 
-const store = (token: string | null) => {
+const store = (key: string, token: string | null) => {
     try{
-        if(token === null) localStorage.removeItem(keyOf());
-        else localStorage.setItem(keyOf(), token);
+        if(token === null) localStorage.removeItem(key);
+        else localStorage.setItem(key, token);
     }catch{
         return;
     }
 };
 
+// An app that kept its token under another key keeps its users signed in: the first read takes the
+// token from there once, and the old keys are emptied so a later sign-out cannot bring it back.
+const restored = ({ sessionKey: key, legacyKeys }: WebSettings): string | null => {
+    const token = stored(key);
+    if(token !== null) return token;
+
+    const legacy = legacyKeys.map(stored).find((found) => found !== null && found !== '') ?? null;
+    if(legacy === null) return null;
+
+    store(key, legacy);
+    legacyKeys.forEach((old) => store(old, null));
+    return legacy;
+};
+
 class Session{
-    #token: string | null | undefined;
+    #read: WebSettings | null = null;
+    #token: string | null = null;
     readonly #listeners = new Set<Listener>();
     readonly #endings = new Set<Listener>();
 
@@ -31,19 +44,25 @@ class Session{
         if(typeof window !== 'undefined') window.addEventListener('storage', this.#onStorage);
     }
 
+    // Read again after every configure(), which may name another key.
     get token(): string | null{
-        if(this.#token === undefined) this.#token = stored();
+        const current = settings();
+        if(current !== this.#read){
+            this.#read = current;
+            this.#token = restored(current);
+        }
         return this.#token;
     }
 
     start(token: string){
-        store(token);
+        this.#read = settings();
+        store(this.#read.sessionKey, token);
         this.#set(token);
     }
 
     end(token = this.token){
         if(token === null || token !== this.token) return;
-        store(null);
+        store(settings().sessionKey, null);
         this.#set(null);
         this.#endings.forEach((ending) => ending());
     }
@@ -68,7 +87,7 @@ class Session{
     }
 
     #onStorage = (event: StorageEvent) => {
-        if(event.key !== keyOf() || event.newValue === this.token) return;
+        if(event.key !== settings().sessionKey || event.newValue === this.token) return;
         if(event.newValue !== null) return this.#set(event.newValue);
 
         this.#set(null);

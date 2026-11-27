@@ -40,7 +40,7 @@ mount({
 | Option | What it does |
 |---|---|
 | `name` | names the session in `localStorage`: `<name>.session` |
-| `apiUrl` | the api's base url; blank or unset is `<origin>/api` |
+| `apiUrl` | the api's base url; blank or unset is `<origin>/api`. A function is read on every call |
 | `pages` | the page files, from `import.meta.glob`; Vite resolves them when it builds |
 | `meta` | every page's meta, from `import.meta.glob(..., { import: 'meta', eager: true })`, below |
 | `layout` | the frame around every protected page, with an `<Outlet />` |
@@ -51,6 +51,11 @@ mount({
 | `guards` | the app's own checks of each tier, below |
 | `boot` | runs before the app first draws: an async sign-in, a local stack starting; `booting` shows meanwhile, `pending` when unset |
 | `copy` | the app's error copy, below |
+| `sessionKey`, `legacyKeys` | the `localStorage` key of the session, and old keys a token is moved from, below |
+| `timeoutMs` | how long a call may take before it fails with `Network::Timeout`; 0, the default, is no limit |
+| `credentials` | fetch's `credentials` for every call (`'include'` sends cookies); unset leaves the browser's |
+| `onRequest` | `(init, url) => void`, run before each call is sent: `init.headers['x-trace-id'] = id` |
+| `pathDefaults` | `() => ({ teamId })`, the values of path params a call leaves out |
 | `wrap` | providers around the router: `wrap: (app) => <I18nProvider i18n={i18n}>{app}</I18nProvider>` |
 | `root` | the element to render into, `#root` when unset |
 | `router` | `createBrowserRouter`'s options (`basename`, ...) and `RouterProvider`'s (`useTransitions`, `onError`) |
@@ -155,7 +160,18 @@ const detail = useQuery(issueRoutes.get, { path: { projectId, issueId } });
 - A read the api takes as a `POST` with a body is `useQuery(paletteRoutes.list, { body })`; its answer is
   remembered per body.
 - Every component reading the same path and query shares one request and one answer. An answer is
-  fresh for 30 seconds: a page opened again in that time shows it without asking.
+  fresh for 30 seconds: a page opened again in that time shows it without asking. `staleMs` changes
+  it, `Infinity` for an answer that never goes stale; an invalidation still asks again.
+- An answer nobody reads is kept 5 minutes; `keepMs` changes it, 0 to forget it as soon as the last
+  reader leaves. Readers that ask differently keep it as long as the longest asks.
+- `pollMs: 5_000` asks again 5 seconds after each answer while the query is on screen;
+  `pollMs: (data) => data?.waiting ? 5_000 : false` polls only while the answer says so. A poll
+  waits while the tab is hidden and asks as soon as it is shown.
+- `retry: 2` asks again after a network failure, a timeout or a `408`, `429` or `5xx`, waiting
+  1 s, then 2 s, 4 s, up to 30 s; `retry: (error, attempt) => boolean` decides for any error. No
+  query retries by default.
+- `loading` is true while the query waits or asks; `fetching` only while a request is on its way. The
+  first load is `loading && data === null`.
 - A reload keeps the data on screen while it asks, and keeps it with `error` set when it fails.
 - `fresh: true` asks again every time the query mounts, showing the remembered answer meanwhile.
 - `set(data)` replaces the answer: a frame from a gateway goes there. `reload` and `set` stay the same
@@ -167,7 +183,66 @@ const detail = useQuery(issueRoutes.get, { path: { projectId, issueId } });
   a hovered link; the query that mounts later answers from it, or shares it while it is on its way. It
   answers what it read, or `null` when it could not ask or the api refused, and never throws, so one
   prefetch can follow from another: `const course = await prefetch(...)`, then its roadmap.
+- `fetchQuery(endpoint, target, { staleMs, retry })` from `query/useQuery` is a query outside React:
+  it answers the remembered answer while it is fresh, asks otherwise, and throws what the api refused
+  or a missing path param. A query that mounts later reads what it read.
+- `useQueries(endpoint, targets, options)` from `query/useQueries` answers one query per target, for a
+  list that changes length. Each target waits on its own; it takes every option but `pollMs`.
+- `pathDefaults` in `mount` fills a param a call leaves out, or gives as `undefined`; a query waits
+  while neither has a value, and keeps each filled path's answer apart. A component renders again when
+  the default changes only if it reads what the default comes from.
 - `call(endpoint, { path, query, body })` from `http/call` is the same request outside React.
+
+## Lists in pages
+
+```ts
+import { usePages } from '@pollium/readable-react/query/usePages';
+
+const issues = usePages(issueRoutes.list, { path: { projectId }, query: { status } }, { limit: 20 });
+
+<IssueList issues={issues.items} />
+{issues.hasMore && <LoadMore onPress={issues.loadMore} busy={issues.loadingMore} />}
+```
+
+- `usePages` reads an endpoint that answers `{ items, meta }`, asking `limit` (50 by default) at a time
+  with `limit` and `offset`. It answers `items` of every loaded page, `data` (the same, `null` until the
+  first page lands, so `QueryState` takes it), `total`, `hasMore`, `loadMore`, `loading` (the first
+  page), `loadingMore`, `fetching`, `error`, `reload` (every loaded page) and `set`.
+- The next page starts where the api said the first one ends, its `meta.limit`, so a limit the api
+  lowered skips nothing.
+- Each page is an ordinary answer, at its own `limit` and `offset`: a mutation on its branch refreshes
+  every loaded page, and the cached-data functions below reach every page.
+- Components reading the same list share its pages while one of them is on screen. A list opened again
+  starts from its first page, read from memory, and `loadMore` reads the next ones from memory while
+  they are fresh.
+- A page that fails keeps the pages before it and sets `error`; `loadMore` asks for it again.
+- `set((items) => [created, ...items])` changes the loaded items: they are cut into the loaded pages
+  again and `total` moves by the difference, so each page holds what the api would answer at its
+  offset. What no longer fits is on the next page the api has.
+- It waits and is kept apart as `useQuery` is, and takes its options but `select` and `pollMs`.
+
+## Cached data
+
+```ts
+import { getData, removeData, setData, updateData } from '@pollium/readable-react/query/data';
+
+setData(issueRoutes.get, { path: { projectId, issueId } }, issue);
+updateData(issueRoutes.list, (issues) => issues.map((each) => each.id === issue.id ? issue : each));
+removeData(issueRoutes.list);
+```
+
+- `getData(endpoint, target)` reads a remembered answer, `undefined` when there is none.
+- `setData(endpoint, target, value)` writes one, or `setData(endpoint, target, (current) => next)`;
+  a query reading it shows it at once, one that mounts later reads it without asking, and an answer
+  still on its way is dropped.
+- `updateData(endpoint, (data, target) => next)` changes every remembered answer of the endpoint, any
+  path and query, the pages of a list included. Answering `undefined` or the same data leaves one as
+  it is.
+- `setData` and `updateData` answer a rollback that puts back what was there, unless a newer answer
+  has landed since.
+- `removeData(endpoint, target?)` forgets one answer, or every answer of the endpoint; `clearData()`
+  forgets everything. A query on screen asks again at once, any other on its next mount. The session's
+  end already forgets everything.
 
 ## Mutations
 
@@ -190,6 +265,27 @@ await update.run({ body: { status } });
   and ask again the next time a component mounts them. `markStale()` with nothing marks every query, for an
   event that may have changed anything and should not set every screen asking at once.
 - `run` throws the error and keeps it in `error`; `reset()` clears it.
+- `optimistic(input, { path, query })` changes what is on screen before the request leaves and answers
+  how to undo it, which `setData` already does:
+  `optimistic: (_, { path }) => setData(issueRoutes.list, { path }, (issues) => issues?.filter(...))`.
+  When the api refuses, the rollback runs before `run` throws and the branch refreshes, so the api's
+  answer replaces anything the rollback could not put back.
+
+## Calls
+
+- `call(endpoint, { as })` reads the answer as `'json'` (the default, unwrapped from its envelope),
+  `'text'`, `'blob'`, `'arrayBuffer'`, or `'response'`, the `Response` itself to read its headers. The
+  answer is typed by it. A refusal throws the same `ApiError` whatever `as` says.
+- A `Blob`, `ArrayBuffer`, typed array or `URLSearchParams` body is sent as it is, and so is a string
+  with `contentType: 'application/x-ipynb+json'`. Any other body is JSON, with `contentType` naming its
+  media type when given. A `FormData` body never takes a `Content-Type`, so fetch writes its boundary.
+- `timeoutMs` and `credentials` per call replace the ones in `mount`; `timeoutMs: 0` is no limit, as for
+  a large download. The time covers the body too, except with `as: 'response'`, timed until its headers.
+  A caller's own `signal` still aborts with its own reason.
+- `upload(url, body, { method, headers, onProgress, signal })` from `http/upload` sends a body over XHR
+  and reports `{ loaded, total }` as it goes. It puts by default. A path, or a url under `apiUrl`, is on
+  the api and carries the session, `onRequest` and `credentials`, and its answer is unwrapped; any other
+  url, such as a presigned one, gets only the headers given.
 
 ## States
 
@@ -233,7 +329,8 @@ issueCopy.with(projectCopy)(detail.error); // the copy of both tables
   and may add codes several modules share. `unknown` may be `(code) => string`, to name the code it could
   not describe. `describeError(error)` reads only the app's copy.
 - An error is an `ApiError` with `status`, `code` (no detail), `fields` (the field errors the api
-  answered) and `isNetworkError`.
+  answered) and `isNetworkError`. A call that ran out of time is `Network::Timeout`, a network error:
+  its copy is `offline` unless a table or the app's `codes` names it.
 
 ## Live data
 
@@ -320,7 +417,9 @@ const probe = useForm({
 ## Session
 
 `session.start(token)` signs in, `session.end()` signs out, and `useSession()` renders again on each. The
-token is kept in `localStorage` and sent as a bearer token on every call and socket. The session ends by
+token is kept in `localStorage`, under `<name>.session` or the `sessionKey` given to `mount`, and sent as
+a bearer token on every call and socket. `legacyKeys: ['authToken']` moves a token kept under an old key
+on the first read, once, and empties the old keys; a token under the session key wins. The session ends by
 itself when the api answers `401 Auth::Unauthorized` or `Auth::InvalidToken` to the token it was sent,
 when a gateway closes for it and when another tab signs out. A call still on its way with an old token
 never ends a session started after it. Every query forgets what it loaded, and the ones still on screen
@@ -335,7 +434,7 @@ beforeEach(() => configure({ name: 'condor', apiUrl: 'http://api.test' }));
 ```
 
 Stub `fetch` with `vi.stubGlobal` and answer `{ data }` as the api does; `WebSocket` the same way for a
-gateway. A test renders a page or a hook with `@testing-library/react`.
+gateway, and `XMLHttpRequest` for an upload. A test renders a page or a hook with `@testing-library/react`.
 
 ## Things that will otherwise burn an hour
 
@@ -350,5 +449,10 @@ gateway. A test renders a page or a hook with `@testing-library/react`.
   web's own files.
 - **The handlers of `useChannel` are read once, when it mounts.** A handler added later is never called;
   its body may change on every render.
+- **A path default fills `undefined` too.** `{ path: { teamId: maybeTeam } }` takes the default team while
+  `maybeTeam` is unset; wait with `enabled` when that is not what you mean.
+- **Nothing retries, polls or times out by itself.** A query retries and polls only when it says so,
+  and a call times out only with `timeoutMs` in `mount` or on the call; an app that wants a retry on
+  every query wraps `useQuery` once.
 - **On Node 25 a test that reads `localStorage` gets Node's.** `readableConfig` starts the test workers
   with `--no-experimental-webstorage`; a web that writes its own Vite config needs the same.

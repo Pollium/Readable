@@ -1,16 +1,36 @@
 import { AppCopy } from '../errors/copy';
+import { PathValues } from '../http/call';
 import { defineErrors } from '@pollium/readable-contracts/errors';
+
+export interface OutgoingRequest extends RequestInit{
+    method: string;
+    headers: Record<string, string>;
+}
+
+export type RequestHook = (init: OutgoingRequest, url: string) => void | Promise<void>;
 
 export interface WebOptions{
     name: string;
-    apiUrl?: string;
+    apiUrl?: string | (() => string | null | undefined);
     copy?: AppCopy;
+    sessionKey?: string;
+    legacyKeys?: readonly string[];
+    timeoutMs?: number;
+    credentials?: RequestCredentials;
+    onRequest?: RequestHook;
+    pathDefaults?: () => PathValues;
 }
 
 export interface WebSettings{
     name: string;
-    apiUrl: string;
+    readonly apiUrl: string;
     copy: AppCopy | null;
+    sessionKey: string;
+    legacyKeys: readonly string[];
+    timeoutMs: number;
+    credentials: RequestCredentials | undefined;
+    onRequest: RequestHook | null;
+    pathDefaults: (() => PathValues) | null;
 }
 
 const ConfigErrors = defineErrors({
@@ -22,11 +42,34 @@ const ConfigErrors = defineErrors({
 
 let current: WebSettings | null = null;
 
-export const configure = ({ name, apiUrl, copy }: WebOptions) => {
+const baseOf = (url: string | null | undefined): string =>
+    (url?.trim() || `${window.location.origin}/api`).replace(/\/+$/, '');
+
+export const configure = ({
+    name,
+    apiUrl,
+    copy,
+    sessionKey,
+    legacyKeys = [],
+    timeoutMs = 0,
+    credentials,
+    onRequest,
+    pathDefaults
+}: WebOptions) => {
+    // A function is read on every call, so an app can point at another api while it runs.
+    const fixed = typeof apiUrl === 'function' ? null : baseOf(apiUrl);
     current = {
         name,
-        apiUrl: (apiUrl?.trim() || `${window.location.origin}/api`).replace(/\/+$/, ''),
-        copy: copy ?? null
+        get apiUrl(){
+            return fixed ?? baseOf((apiUrl as () => string | null | undefined)());
+        },
+        copy: copy ?? null,
+        sessionKey: sessionKey?.trim() || `${name}.session`,
+        legacyKeys,
+        timeoutMs,
+        credentials,
+        onRequest: onRequest ?? null,
+        pathDefaults: pathDefaults ?? null
     };
 };
 

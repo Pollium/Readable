@@ -68,6 +68,13 @@ describe('copyFor', () => {
         expect(noteCopy(new ApiError(0, 'Network::Unreachable'))).toBe('You are offline');
     });
 
+    it('tells a network error by its code when the app names it, as a call that ran out of time', () => {
+        configure({ name: 'notes', copy: { ...appCopy, codes: { ...appCopy.codes, 'Network::Timeout': 'The api took too long' } } });
+
+        expect(describeError(new ApiError(0, 'Network::Timeout'))).toBe('The api took too long');
+        expect(describeError(new ApiError(0, 'Network::Unreachable'))).toBe('You are offline');
+    });
+
     it('joins the copy of several tables', () => {
         configure({ name: 'notes', copy: appCopy });
         const TagErrors = defineErrors({ domain: 'Tag', causes: { Taken: 409 } });
