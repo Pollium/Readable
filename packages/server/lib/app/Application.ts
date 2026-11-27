@@ -7,6 +7,7 @@ import { RuntimeError, ValidationError, RateLimitError, ServerError } from './er
 import { ApiError } from '@pollium/readable-contracts/http';
 import { LogLevel, logger } from './logger';
 import { broadcast } from '../events/Broadcast';
+import { closeTransport } from '../events/transports';
 import { registerCompression } from './compression';
 import { eventBus, registerEventGroup } from '../events/EventBus';
 import { Discovered, MountedController } from './discovery';
@@ -112,6 +113,7 @@ export default class Application{
         await Promise.all(this.#queues.map((queue) => queue.close()));
         await eventBus.close();
         await broadcast.close();
+        await closeTransport();
         await this.#dataSource?.destroy();
     }
 
