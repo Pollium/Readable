@@ -14,6 +14,7 @@ export {
     Socket,
     Bytes
 } from './bindings';
+export type { ChannelOptions } from './bindings';
 export { Connection } from './Connection';
 export type { RequestOptions } from './Connection';
 
@@ -33,7 +34,7 @@ export default abstract class BaseGateway{
         if(!channel) throw GatewayError.MissingChannel();
 
         const host = hostFor(app, channel.path, this.#connections);
-        host.add(this);
+        host.add(this, channel.options);
         this.#connections = host.registry;
     }
 
