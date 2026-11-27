@@ -49,6 +49,7 @@ interface ServerOptions{
 type WebSocketServer = FastifyInstance['websocketServer'];
 
 const REAUTHORIZE_MS = 30_000;
+const SHUTDOWN_GRACE_MS = 2_000;
 const CLOSE_REASON_BYTES = 123;
 const DEFLATE_THRESHOLD_BYTES = 1024;
 
@@ -59,6 +60,14 @@ const patched = new WeakSet<WebSocketServer>();
 const reasonOf = (code: string): string => {
     const bytes = new TextEncoder().encode(code);
     return bytes.length <= CLOSE_REASON_BYTES ? code : new TextDecoder().decode(bytes.subarray(0, CLOSE_REASON_BYTES)).replace(/\uFFFD$/, '');
+};
+
+const wait = (ms: number): { done: Promise<void>; cancel: () => void } => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const done = new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, ms);
+    });
+    return { done, cancel: () => clearTimeout(timer) };
 };
 
 // One ws server serves every route, so a channel's limit and compression are put on it for the
@@ -95,16 +104,20 @@ export const hostFor = (app: FastifyInstance, path: string, registry: Connection
     return host;
 };
 
+export const hostsOf = (app: FastifyInstance): ChannelHost[] => [...hosts.get(app.server)?.values() ?? []];
+
 export class ChannelHost{
     readonly registry: ConnectionsRegistry;
     readonly #path: string;
     readonly #gateways: BaseGateway[] = [];
     readonly #handlers = new Map<string, Handler>();
     readonly #options: ChannelOptions = {};
+    readonly #live = new Set<LiveConnection>();
     readonly #authorizations = new WeakMap<FastifyRequest, () => Promise<void>>();
     readonly #refusals = new WeakMap<FastifyRequest, unknown>();
     readonly #origin = randomUUID();
     #relaying = false;
+    #stopping: Promise<void> | undefined;
 
     constructor(path: string, registry: ConnectionsRegistry){
         this.#path = path;
@@ -161,6 +174,11 @@ export class ChannelHost{
         }
     }
 
+    shutdown(): Promise<void>{
+        this.#stopping ??= this.#stop();
+        return this.#stopping;
+    }
+
     async #admit(req: FastifyRequest, reply: FastifyReply){
         if(this.serverOptions() !== undefined){
             patch(req.server.websocketServer);
@@ -184,9 +202,11 @@ export class ChannelHost{
 
     #accept(socket: WebSocket, req: FastifyRequest){
         if(this.#refusals.has(req)) return this.#refuse(socket, this.#refusals.get(req));
+        if(this.#stopping !== undefined) return socket.close(SocketClose.ShuttingDown, 'shutting down');
 
         const connection = new LiveConnection(socket, req);
         const disconnected = new AbortController();
+        this.#live.add(connection);
         this.registry.add(socket, connection);
         const watches = this.#watch(connection);
         const ready = this.#lifecycle('connect', connection);
@@ -198,6 +218,7 @@ export class ChannelHost{
         socket.on('close', () => {
             watches.forEach((stop) => stop());
             disconnected.abort();
+            this.#live.delete(connection);
             connection.terminated();
             this.registry.remove(socket);
             void this.#lifecycle('disconnect', connection);
@@ -339,7 +360,7 @@ export class ChannelHost{
 
         try{
             broadcast.subscribe<Relayed>(this.#topic(), ({ origin, room, message, except, bytes }) => {
-                if(origin === this.#origin) return;
+                if(origin === this.#origin || this.#stopping !== undefined) return;
                 this.#deliver(room, message, except, bytes === undefined ? undefined : Buffer.from(bytes, 'base64'));
             });
         }catch(error){
@@ -370,4 +391,26 @@ export class ChannelHost{
         }
     }
 
+    async #stop(){
+        for(const gateway of this.#gateways){
+            for(const binding of bindings.get(gateway.constructor)){
+                if(binding.event !== 'shutdown') continue;
+                try{
+                    await (Reflect.get(gateway, binding.handlerName) as () => unknown).call(gateway);
+                }catch(error){
+                    logger.error(`Gateway::ShutdownFailed:${this.#path}`, error);
+                }
+            }
+        }
+
+        const closing = [...this.#live].map((connection) => new Promise<void>((resolve) => {
+            connection.socket.once('close', () => resolve());
+            connection.close(SocketClose.ShuttingDown, 'shutting down');
+        }));
+        const grace = wait(SHUTDOWN_GRACE_MS);
+        await Promise.race([Promise.all(closing), grace.done]);
+        grace.cancel();
+
+        for(const connection of this.#live) connection.socket.terminate();
+    }
 }
