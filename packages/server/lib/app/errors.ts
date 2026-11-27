@@ -2,10 +2,12 @@ import {
     RuntimeError,
     defineErrors,
     RequestErrors,
+    RequestProtocolErrors,
     ServerErrors,
     AuthErrors,
     GatewayErrors,
-    RateLimitErrors
+    RateLimitErrors,
+    DatabaseErrors
 } from '@pollium/readable-contracts/errors';
 
 export { RuntimeError, defineErrors };
@@ -20,10 +22,12 @@ export class ValidationError extends RuntimeError{
 }
 
 export const RequestError = defineErrors(RequestErrors);
+export const RequestProtocolError = defineErrors(RequestProtocolErrors);
 export const ServerError = defineErrors(ServerErrors);
 export const AuthError = defineErrors(AuthErrors);
 export const GatewayError = defineErrors(GatewayErrors);
 export const RateLimitError = defineErrors(RateLimitErrors);
+export const DatabaseError = defineErrors(DatabaseErrors);
 
 export const EventError = defineErrors({
     domain: 'Events',
@@ -36,6 +40,7 @@ export const ConfigError = defineErrors({
     domain: 'Config',
     causes: {
         MissingEnv: 500,
+        MissingPlugin: 500,
         InvalidEnv: 500,
         InvalidEncryptionKey: 500
     }

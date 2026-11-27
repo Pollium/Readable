@@ -45,3 +45,42 @@ describe('Application CORS', () => {
         });
     });
 });
+
+describe('Application CORS with CORS_ORIGIN=*', () => {
+    const anyOrigin = new Application({
+        port: 0,
+        corsOrigins: ['*'],
+        exposedHeaders: ['ETag', 'Content-Length'],
+        log: { level: 'silent', pretty: false },
+        discover: async () => ModuleDiscovery.merge([])
+    });
+
+    afterAll(() => anyOrigin.stop());
+
+    it('reflects any origin, with credentials, and exposes the headers it was given', async () => {
+        const reflecting = await anyOrigin.build({ queues: false });
+        reflecting.get('/trajectories', async () => ({ ok: true }));
+
+        const res = await reflecting.inject({ method: 'GET', url: '/trajectories', headers: { origin: 'http://localhost:5173' } });
+        const preflight = await reflecting.inject({
+            method: 'OPTIONS',
+            url: '/trajectories',
+            headers: { origin: 'https://desktop.volt', 'access-control-request-method': 'PUT' }
+        });
+
+        expect(res.headers).toMatchObject({
+            'access-control-allow-origin': 'http://localhost:5173',
+            'access-control-allow-credentials': 'true',
+            'access-control-expose-headers': 'x-trace-id, ETag, Content-Length'
+        });
+        expect(preflight.headers['access-control-allow-origin']).toBe('https://desktop.volt');
+    });
+});
+
+describe('Application CORS without exposed headers', () => {
+    it('exposes only the trace id', async () => {
+        const res = await app.inject({ method: 'GET', url: '/private', headers: { origin: 'https://app.example' } });
+
+        expect(res.headers['access-control-expose-headers']).toBe('x-trace-id');
+    });
+});

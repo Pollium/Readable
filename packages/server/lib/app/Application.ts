@@ -3,7 +3,8 @@ import rateLimit from '@fastify/rate-limit';
 import websocket from '@fastify/websocket';
 import BaseGateway, { websocketOptions } from '../gateway/Gateway';
 import BaseQueue from '../queues/BaseQueue';
-import { RuntimeError, ValidationError, RateLimitError, ServerError } from './errors';
+import { ValidationError, RateLimitError } from './errors';
+import { answerOf } from './error-answers';
 import { ApiError } from '@pollium/readable-contracts/http';
 import { LogLevel, logger } from './logger';
 import { broadcast } from '../events/Broadcast';
@@ -11,6 +12,8 @@ import { registerCompression } from './compression';
 import { eventBus, registerEventGroup } from '../events/EventBus';
 import { Discovered, MountedController } from './discovery';
 import { redis } from './redis';
+import { HttpOptions, applyHttpOptions } from './http-options';
+import { TRACE_ID_HEADER, registerTracing } from './trace';
 import Fastify, { LogController, FastifyInstance, FastifyBaseLogger } from 'fastify';
 import { DataSource } from 'typeorm';
 
@@ -23,7 +26,7 @@ export interface ApplicationLog{
     pretty: boolean;
 }
 
-export interface ApplicationOptions{
+export interface ApplicationOptions extends HttpOptions{
     port: number;
     corsOrigins: string[];
     publicPaths?: string[];
@@ -55,24 +58,28 @@ export default class Application{
     }
 
     async build({ queues: startQueues = true }: BuildOptions = {}): Promise<FastifyInstance>{
+        applyHttpOptions(this.#options);
         logger.configure({
             level: this.#options.log.level as LogLevel,
             pretty: this.#options.log.pretty
         });
         this.#app = Fastify({
-            loggerInstance: logger.raw as FastifyBaseLogger,
+            trustProxy: ['loopback', 'linklocal', 'uniquelocal'],
             logController: new LogController({ disableRequestLogging: true }),
-            trustProxy: ['loopback', 'linklocal', 'uniquelocal']
+            ...this.#options.fastify,
+            loggerInstance: logger.raw as FastifyBaseLogger
         });
+        registerTracing(this.#app);
 
         await this.#app.register(cors, {
             delegator: (req, resolve) => {
                 const open = this.#options.publicPaths?.some((path) => req.url.startsWith(path)) ?? false;
 
                 resolve(null, {
-                    origin: open ? true : this.#options.corsOrigins,
+                    origin: open || this.#options.corsOrigins.includes('*') ? true : this.#options.corsOrigins,
                     credentials: !open,
-                    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE']
+                    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'],
+                    exposedHeaders: [TRACE_ID_HEADER, ...this.#options.exposedHeaders ?? []]
                 });
             }
         });
@@ -104,7 +111,7 @@ export default class Application{
 
     async start(){
         await this.build();
-        await this.#app.listen({ port: this.#options.port, host: '0.0.0.0' });
+        await this.#app.listen({ port: this.#options.port, host: this.#options.host ?? '0.0.0.0' });
     }
 
     async stop(){
@@ -125,7 +132,7 @@ export default class Application{
 
     #registerErrorHandler(){
         this.#app.setErrorHandler((err, req, reply) => {
-            const answer = err instanceof RuntimeError ? err : ServerError.Internal();
+            const answer = answerOf(err, this.#options.mapError);
 
             if(answer.statusCode >= 500){
                 logger.error(`${req.method} ${req.url}`, err, { scope: 'http', statusCode: answer.statusCode });

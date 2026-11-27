@@ -1,4 +1,5 @@
-import pino, { Logger as PinoLogger } from 'pino';
+import pino, { DestinationStream, Logger as PinoLogger, LoggerOptions as PinoOptions } from 'pino';
+import { traceId } from './trace';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'silent';
 export type LogMethod = 'debug' | 'info' | 'warn';
@@ -7,20 +8,29 @@ export type LogContext = Record<string, unknown>;
 export interface LoggerOptions{
     level: LogLevel;
     pretty: boolean;
+    destination?: DestinationStream;
 }
+
+const traced = (): LogContext => {
+    const id = traceId();
+    return id === undefined ? {} : { traceId: id };
+};
+
+const create = (options: PinoOptions, destination?: DestinationStream): PinoLogger =>
+    destination === undefined ? pino({ ...options, mixin: traced }) : pino({ ...options, mixin: traced }, destination);
 
 export class Logger{
     #pino: PinoLogger;
 
     constructor(instance?: PinoLogger){
-        this.#pino = instance ?? pino({ level: 'info' });
+        this.#pino = instance ?? create({ level: 'info' });
     }
 
     configure(options: LoggerOptions){
-        this.#pino = pino({
+        this.#pino = create({
             level: options.level,
-            transport: options.pretty ? { target: 'pino-pretty' } : undefined
-        });
+            transport: options.pretty && options.destination === undefined ? { target: 'pino-pretty' } : undefined
+        }, options.destination);
     }
 
     child(bindings: LogContext): Logger{

@@ -1,6 +1,8 @@
 import { ClassMetadata } from '../app/metadata';
 import { HttpMethod, Endpoint } from '@pollium/readable-contracts/routing';
 import { Paginated, RawResponse, RedirectResponse } from './responses';
+import { varyOn } from '../app/compression';
+import { takeBodyAsStream } from './stream-body';
 import { getParamResolvers } from './params';
 import { getMiddleware, getRateLimit } from './middleware';
 import { FastifyReply, FastifyRequest, RouteGenericInterface, FastifyInstance } from 'fastify';
@@ -11,11 +13,15 @@ export interface RouteDefinition{
     handlerName: string | symbol;
     absolute: boolean;
     bodyLimit?: number;
+    body?: RouteBody;
 }
+
+export type RouteBody = 'stream';
 
 export interface RouteOptions{
     method?: HttpMethod;
     bodyLimit?: number;
+    body?: RouteBody;
 }
 
 export interface StatusBinding{
@@ -47,12 +53,12 @@ export const Route = <I, O>(
     options: HttpMethod | RouteOptions = 'GET'
 ): MethodDecorator => {
     return (target, handlerName) => {
-        const { method = 'GET', bodyLimit } = typeof options === 'string' ? { method: options } : options;
+        const { method = 'GET', bodyLimit, body } = typeof options === 'string' ? { method: options } : options;
         const definition = typeof route === 'string'
             ? { path: route, method, absolute: false }
             : { path: route.path, method: route.method, absolute: true };
 
-        routesByController.append(target.constructor, { ...definition, bodyLimit, handlerName });
+        routesByController.append(target.constructor, { ...definition, bodyLimit, body, handlerName });
     };
 };
 
@@ -69,6 +75,16 @@ export const getStatus = (
     return statusByHandler
         .get(ctor)
         .find((binding) => binding.handlerName === handlerName)?.code;
+};
+
+// Vary adds to what CORS and compression already vary on instead of replacing it.
+const sendRaw = (reply: FastifyReply, { body, contentType, headers }: RawResponse) => {
+    for(const [name, value] of Object.entries(headers)){
+        if(name.toLowerCase() === 'vary') varyOn(reply, String(value));
+        else reply.header(name, value);
+    }
+
+    return reply.type(contentType).send(body);
 };
 
 export default abstract class BaseController{
@@ -89,6 +105,18 @@ export default abstract class BaseController{
     }
 
     #mount(scope: FastifyInstance, route: RouteDefinition){
+        if(route.body !== 'stream'){
+            this.#route(scope, route);
+            return;
+        }
+
+        void scope.register(async (streaming) => {
+            takeBodyAsStream(streaming);
+            this.#route(streaming, route);
+        });
+    }
+
+    #route(scope: FastifyInstance, route: RouteDefinition){
         const middlewares = getMiddleware(this.constructor, route.handlerName);
 
         scope.route({
@@ -116,10 +144,7 @@ export default abstract class BaseController{
             if(reply.sent) return;
 
             if(result instanceof RawResponse){
-                return reply
-                    .status(override ?? result.status)
-                    .type(result.contentType)
-                    .send(result.body);
+                return sendRaw(reply.status(override ?? result.status), result);
             }
 
             if(result instanceof RedirectResponse){

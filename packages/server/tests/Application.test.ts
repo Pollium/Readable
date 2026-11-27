@@ -36,6 +36,7 @@ app.get('/broken', async () => {
 app.get('/refused', async () => {
     throw new RuntimeError('Probe::Refused', 502);
 });
+app.post('/notes', { bodyLimit: 32 }, async (req) => req.body);
 
 const clientOf = async (remoteAddress: string, forwardedFor: string): Promise<string> => {
     const res = await app.inject({
@@ -77,5 +78,35 @@ describe('Application errors', () => {
 
         expect(res.statusCode).toBe(502);
         expect(res.json()).toEqual({ error: 'Probe::Refused' });
+    });
+});
+
+describe('Application answering a request it cannot read', () => {
+    const post = (payload: string, contentType = 'application/json') =>
+        app.inject({ method: 'POST', url: '/notes', headers: { 'content-type': contentType }, payload });
+
+    it('answers malformed JSON with 400 instead of a server failure', async () => {
+        const res = await post('{"title":');
+
+        expect(res.statusCode).toBe(400);
+        expect(res.json()).toEqual({ error: 'Request::Malformed' });
+    });
+
+    it('answers a body over the route limit with 413', async () => {
+        const res = await post(JSON.stringify({ title: 'x'.repeat(64) }));
+
+        expect(res.statusCode).toBe(413);
+        expect(res.json()).toEqual({ error: 'Request::BodyTooLarge' });
+    });
+
+    it('answers a content type with no parser with 415', async () => {
+        const res = await post('bytes', 'application/octet-stream');
+
+        expect(res.statusCode).toBe(415);
+        expect(res.json()).toEqual({ error: 'Request::UnsupportedMediaType' });
+    });
+
+    it('still reads a body it can', async () => {
+        expect((await post('{"title":"a"}')).json()).toEqual({ title: 'a' });
     });
 });

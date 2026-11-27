@@ -65,6 +65,17 @@ export const RequestErrors = {
 
 export type RequestErrorCode = ErrorCode<typeof RequestErrors>;
 
+export const RequestProtocolErrors = {
+    domain: 'Request',
+    causes: {
+        Malformed: 400,
+        BodyTooLarge: 413,
+        UnsupportedMediaType: 415
+    }
+} as const satisfies ErrorTable;
+
+export type RequestProtocolErrorCode = ErrorCode<typeof RequestProtocolErrors>;
+
 export const AuthErrors = {
     domain: 'Auth',
     causes: {
@@ -74,6 +85,17 @@ export const AuthErrors = {
 } as const satisfies ErrorTable;
 
 export type AuthErrorCode = ErrorCode<typeof AuthErrors>;
+
+export const DatabaseErrors = {
+    domain: 'Database',
+    causes: {
+        UniqueViolation: 409,
+        ForeignKeyViolation: 409,
+        NotNullViolation: 400
+    }
+} as const satisfies ErrorTable;
+
+export type DatabaseErrorCode = ErrorCode<typeof DatabaseErrors>;
 
 export const ServerErrors = {
     domain: 'Server',
