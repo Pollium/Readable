@@ -6,6 +6,15 @@ import { describe, expect, it, vi } from 'vitest';
 
 const page = (text: string) => vi.fn(async () => ({ default: () => <p>{text}</p> }));
 
+const frame = (text: string) => vi.fn(async () => ({ default: () => <section>{text} <Outlet /></section> }));
+
+const shown = async (files: Parameters<typeof pagesOf>[0], path: string, text: string): Promise<string> => {
+    const router = createMemoryRouter(routesOf(pagesOf(files)), { initialEntries: [path] });
+    const { container } = render(<RouterProvider router={router} />);
+    await screen.findByText(text);
+    return container.textContent ?? '';
+};
+
 describe('pageOf', () => {
     it('reads the tier and the path from where the file sits', () => {
         expect(pageOf('/src/modules/issues/pages/protected/[projectId]/errores/index.tsx'))
@@ -57,6 +66,56 @@ describe('routesOf', () => {
         expect(await screen.findByText('one note')).toBeTruthy();
         expect(screen.getByText(/notes layout/)).toBeTruthy();
         expect(files['/src/modules/account/pages/protected/account/index.tsx']).not.toHaveBeenCalled();
+    });
+});
+
+describe('layouts', () => {
+    it('frame every page below their folder, however deep', async () => {
+        const files = {
+            '/src/modules/dashboard/pages/protected/dashboard/layout.tsx': frame('dashboard'),
+            '/src/modules/dashboard/pages/protected/dashboard/index.tsx': page('home'),
+            '/src/modules/plugins/pages/protected/dashboard/trajectory/[trajectoryId]/plugins/[pluginId]/index.tsx': page('listing')
+        };
+
+        expect(await shown(files, '/dashboard/trajectory/t1/plugins/p1', 'listing')).toBe('dashboard listing');
+        expect(routesOf(pagesOf(files)).map((route) => route.children?.map((child) => child.path ?? 'index')))
+            .toEqual([['index', 'trajectory/:trajectoryId/plugins/:pluginId']]);
+    });
+
+    it('nest, the deeper one inside the one above it', async () => {
+        const files = {
+            '/src/modules/dashboard/pages/protected/dashboard/layout.tsx': frame('dashboard'),
+            '/src/modules/settings/pages/protected/dashboard/settings/layout.tsx': frame('settings'),
+            '/src/modules/settings/pages/protected/dashboard/settings/general/index.tsx': page('general'),
+            '/src/modules/keys/pages/protected/dashboard/settings/secretKeys/[secretKeyId]/index.tsx': page('one key')
+        };
+
+        expect(await shown(files, '/dashboard/settings/secret-keys/k1', 'one key')).toBe('dashboard settings one key');
+        expect(routesOf(pagesOf(files))).toMatchObject([{
+            path: 'dashboard',
+            children: [{ path: 'settings', children: [{ path: 'general' }, { path: 'secret-keys/:secretKeyId' }] }]
+        }]);
+    });
+
+    it('frame a whole tier from its root', async () => {
+        const files = {
+            '/src/modules/site/pages/public/layout.tsx': frame('site'),
+            '/src/modules/site/pages/public/index.tsx': page('landing'),
+            '/src/modules/docs/pages/public/docs/guides/[slug]/index.tsx': page('guide')
+        };
+
+        expect(await shown(files, '/', 'landing')).toBe('site landing');
+        expect(await shown(files, '/docs/guides/start', 'guide')).toBe('site guide');
+    });
+
+    it('leave a folder that only starts with the same name alone', async () => {
+        const files = {
+            '/src/modules/notes/pages/protected/notes/layout.tsx': frame('notes'),
+            '/src/modules/notes/pages/protected/notes/index.tsx': page('all notes'),
+            '/src/modules/archive/pages/protected/notesArchive/index.tsx': page('archive')
+        };
+
+        expect(await shown(files, '/notes-archive', 'archive')).toBe('archive');
     });
 });
 
