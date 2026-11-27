@@ -8,7 +8,7 @@ import { TEST_REDIS } from './env';
 
 configure({ name: 'readable-rooms', jwtSecret: null, redis: TEST_REDIS, storage: null });
 
-const TOPIC = 'readable-rooms:gateway:/stage';
+const TOPIC = 'readable-rooms:gateways';
 
 @Channel('/stage')
 class StageGateway extends BaseGateway{
