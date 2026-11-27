@@ -1,5 +1,6 @@
 import { useSession } from '../session/session';
 import { cache, Retry } from './cache';
+import { dataOf, gateOf, queryOf } from './gate';
 import { poll } from './poll';
 import { filled, isReady, keyOf, QueryTarget, sourceOf } from './source';
 import { Endpoint } from '@pollium/readable-contracts/routing';
@@ -31,6 +32,11 @@ export interface QueryOptions<O, T>{
 
 export type Pending = false | null | undefined | '' | 0;
 
+export interface FetchOptions{
+    staleMs?: number;
+    retry?: Retry;
+}
+
 export { keyOf };
 export type { QueryTarget };
 
@@ -45,16 +51,31 @@ export const prefetch = <I, O>(endpoint: Endpoint<I, O>, given: QueryTarget<I> =
     return cache.fetch(key);
 };
 
+// Unlike prefetch, it answers what it read and throws what the api refused, or a missing path param.
+export const fetchQuery = async <I, O>(
+    endpoint: Endpoint<I, O>,
+    given: QueryTarget<I> = {} as QueryTarget<I>,
+    { staleMs = 30_000, retry }: FetchOptions = {}
+): Promise<O> => {
+    const target = filled(given);
+    const key = keyOf(endpoint, target);
+    cache.ensure(key, sourceOf(endpoint, target));
+
+    const before = cache.snapshot(key);
+    await cache.fetch(key, { maxAge: staleMs, retry });
+    const after = cache.snapshot(key);
+    if(after !== before && after.error !== undefined) throw after.error;
+    return after.data as O;
+};
+
 export const useQuery = <I, O, T = O>(
     endpoint: Endpoint<I, O>,
     given: QueryTarget<I> | Pending = {} as QueryTarget<I>,
     { select, enabled = true, fresh = false, dependsOn, staleMs = 30_000, keepMs, pollMs = false, retry }: QueryOptions<O, T> = {}
 ): Query<T, O> => {
     const target = given && filled(given);
-    const upstream = [dependsOn ?? []].flat();
-    const failed = upstream.find((query) => query.error !== undefined && query.data === null);
-    const waiting = upstream.some((query) => query.loading && query.data === null);
-    const ready = enabled && failed === undefined && !waiting && Boolean(target) && isReady(endpoint, target || {});
+    const gate = gateOf(dependsOn, enabled);
+    const ready = gate.open && Boolean(target) && isReady(endpoint, target || {});
     const key = ready ? keyOf(endpoint, target || {}) : null;
 
     if(key !== null) cache.ensure(key, sourceOf(endpoint, target || {}), { keepMs, retry });
@@ -71,14 +92,13 @@ export const useQuery = <I, O, T = O>(
         if(key !== null) void cache.fetch(key, { maxAge });
     }, [key, token, maxAge]);
 
-    const data = snapshot.landed && snapshot.data !== undefined ? snapshot.data as O : null;
-    const every = typeof pollMs === 'function' ? pollMs(data) : pollMs;
+    const every = typeof pollMs === 'function' ? pollMs(dataOf<O>(snapshot)) : pollMs;
     useEffect(() => {
         if(key === null || every === false || every <= 0 || snapshot.fetching) return;
         return poll(key, every);
     }, [key, every, snapshot]);
 
-    const upstreamReload = failed?.reload;
+    const upstreamReload = gate.failed?.reload;
     const reload = useCallback(() => {
         if(upstreamReload !== undefined) return upstreamReload();
         if(key !== null) void cache.fetch(key, { force: true });
@@ -87,12 +107,5 @@ export const useQuery = <I, O, T = O>(
         if(key !== null) cache.set(key, value);
     }, [key]);
 
-    return {
-        data: data === null ? null : select === undefined ? data as O & T : select(data),
-        loading: waiting || (ready && (snapshot.fetching || (!snapshot.landed && snapshot.error === undefined))),
-        fetching: ready && snapshot.fetching,
-        error: failed?.error ?? (ready ? snapshot.error : undefined),
-        reload,
-        set
-    };
+    return queryOf(snapshot, ready, gate, select, reload, set);
 };
