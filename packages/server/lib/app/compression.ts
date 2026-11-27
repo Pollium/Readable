@@ -11,15 +11,17 @@ const encodingFor = (accepted: string | undefined): Encoding | null => {
     return offered.includes('gzip') ? 'gzip' : null;
 };
 
+// A part of a file (206) is counted in the bytes of the file as stored, so it is never encoded.
 const isCompressible = (reply: FastifyReply): boolean => {
     const compressibleType = /^(application\/(json|xml|javascript)|text\/|image\/svg\+xml)/;
+    if(reply.hasHeader('content-encoding') || reply.hasHeader('content-range')) return false;
 
-    return !reply.hasHeader('content-encoding') && compressibleType.test(String(reply.getHeader('content-type') ?? ''));
+    return compressibleType.test(String(reply.getHeader('content-type') ?? ''));
 };
 
-const varyOnEncoding = (reply: FastifyReply) => {
+export const varyOn = (reply: FastifyReply, value: string) => {
     const vary = reply.getHeader('vary');
-    reply.header('vary', vary === undefined ? 'Accept-Encoding' : `${String(vary)}, Accept-Encoding`);
+    reply.header('vary', vary === undefined ? value : `${String(vary)}, ${value}`);
 };
 
 export const registerCompression = (app: FastifyInstance) => {
@@ -40,7 +42,7 @@ export const registerCompression = (app: FastifyInstance) => {
 
         reply.header('content-encoding', encoding);
         reply.removeHeader('content-length');
-        varyOnEncoding(reply);
+        varyOn(reply, 'Accept-Encoding');
 
         return compressed;
     });

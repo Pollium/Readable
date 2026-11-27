@@ -6,8 +6,9 @@ import { configure } from '../lib/app/config';
 import websocket from '@fastify/websocket';
 import { FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
+import { TEST_REDIS } from './env';
 
-configure({ name: 'readable', jwtSecret: null, redis: { host: 'localhost', port: 6379 }, storage: null });
+configure({ name: 'readable', jwtSecret: null, redis: TEST_REDIS, storage: null });
 
 @Channel('/echo')
 class EchoGateway extends BaseGateway{

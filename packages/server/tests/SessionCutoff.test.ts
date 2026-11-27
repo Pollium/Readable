@@ -5,6 +5,7 @@ import Fastify from 'fastify';
 import { AuthenticatedController } from '../lib/auth/guards';
 import { JWTService, sessionCutoffs } from '../lib/auth/sessions';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { TEST_REDIS } from './env';
 
 class ProbeController extends AuthenticatedController{
     @Route('/probe')
@@ -29,7 +30,7 @@ describe('a session cut by a credential change', () => {
         configure({
             name: 'readable',
             jwtSecret: 'test-jwt-secret',
-            redis: { host: 'localhost', port: 6379 },
+            redis: TEST_REDIS,
             storage: null
         });
     });

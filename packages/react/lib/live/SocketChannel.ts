@@ -1,151 +1,67 @@
 import { settings } from '../app/config';
 import { session } from '../session/session';
 import { SocketClose } from '@pollium/readable-contracts/gateway';
+import { CloseVerdict, GatewayLink, LinkSocket, LinkStatus } from '@pollium/readable-contracts/gateway-link';
 
-export type ChannelStatus = 'connecting' | 'open' | 'reconnecting' | 'closed';
+export type {
+    AnswerHandler,
+    ErrorHandler,
+    FrameHandler,
+    LinkRequestOptions as RequestOptions,
+    LinkSendOptions as SendOptions
+} from '@pollium/readable-contracts/gateway-link';
 
-type Handler<T> = (value: T) => void;
+export type ChannelStatus = LinkStatus;
 
-interface Frame{
-    type?: unknown;
-    data?: unknown;
-    error?: unknown;
-    sessionId?: unknown;
-}
-
-export type ErrorHandler = (error: string, sessionId: string | undefined) => void;
-
-
-const subscribed = <T>(handlers: Set<Handler<T>>, handler: Handler<T>): (() => void) => {
-    handlers.add(handler);
-    return () => {
-        handlers.delete(handler);
-    };
-};
-
-export class SocketChannel{
+export class SocketChannel extends GatewayLink{
     readonly #path: string;
-    #socket: WebSocket | null = null;
-    #status: ChannelStatus = 'connecting';
-    #attempts = 0;
-    #retry: ReturnType<typeof setTimeout> | null = null;
-    #closed = false;
-    readonly #frames = new Map<string, Set<Handler<unknown>>>();
-    readonly #statuses = new Set<Handler<ChannelStatus>>();
-    readonly #errors = new Set<ErrorHandler>();
+    #token: string | null = null;
+    readonly #unsubscribe: () => void;
 
     constructor(path: string){
+        super();
         this.#path = path;
         window.addEventListener('online', this.#recover);
         document.addEventListener('visibilitychange', this.#onVisibility);
-        this.#connect();
-    }
-
-    send(type: string, data?: unknown): boolean{
-        if(this.#socket?.readyState !== WebSocket.OPEN) return false;
-        this.#socket.send(JSON.stringify({ type, ...data as object }));
-        return true;
-    }
-
-    on(type: string, handler: Handler<unknown>): () => void{
-        const handlers = this.#frames.get(type) ?? new Set<Handler<unknown>>();
-        this.#frames.set(type, handlers);
-        return subscribed(handlers, handler);
-    }
-
-    onStatus(handler: Handler<ChannelStatus>): () => void{
-        handler(this.#status);
-        return subscribed(this.#statuses, handler);
-    }
-
-    onError(handler: ErrorHandler): () => void{
-        this.#errors.add(handler);
-        return () => {
-            this.#errors.delete(handler);
-        };
+        this.#unsubscribe = session.subscribe(this.#onSession);
+        this.connect();
     }
 
     close(){
-        this.#closed = true;
-        this.#clearRetry();
         window.removeEventListener('online', this.#recover);
         document.removeEventListener('visibilitychange', this.#onVisibility);
-        this.#setStatus('closed');
-        this.#socket?.close();
-        this.#socket = null;
+        this.#unsubscribe();
+        super.close();
     }
 
-    #connect(){
-        if(this.#closed) return;
-        this.#clearRetry();
-        this.#setStatus(this.#attempts === 0 ? 'connecting' : 'reconnecting');
-
+    protected open(): LinkSocket{
         const token = session.token;
+        this.#token = token;
         const url = `${settings().apiUrl.replace(/^http/, 'ws')}${this.#path}`;
-        const socket = token === null ? new WebSocket(url) : new WebSocket(url, token);
-        this.#socket = socket;
-
-        socket.onopen = () => {
-            this.#attempts = 0;
-            this.#setStatus('open');
-        };
-        socket.onmessage = (event: MessageEvent) => this.#dispatch(event.data);
-        socket.onclose = (event: CloseEvent) => this.#onClose(event.code, token);
+        return token === null ? new WebSocket(url) : new WebSocket(url, token);
     }
 
-    #onClose(code: number, token: string | null){
-        this.#socket = null;
-        if(this.#closed) return;
-        if(code === SocketClose.SessionExpired && token !== null && token === session.token){
-            session.end(token);
-            this.#setStatus('closed');
-            return;
-        }
+    // A close for an expired session ends that session, unless another one has started since.
+    protected afterClose(code: number, reason: string): CloseVerdict{
+        if(code !== SocketClose.SessionExpired) return super.afterClose(code, reason);
 
-        this.#setStatus('reconnecting');
-        const ceiling = Math.min(10_000, 500 * 2 ** this.#attempts);
-        this.#attempts += 1;
-        this.#retry = setTimeout(() => this.#connect(), ceiling / 2 + Math.random() * ceiling / 2);
+        const token = this.#token;
+        if(token !== null && token !== session.token) return 'retry';
+        this.#token = null;
+        if(token !== null) session.end(token);
+        return 'halt';
     }
 
-    #dispatch(raw: unknown){
-        if(typeof raw !== 'string') return;
-
-        let frame: Frame;
-        try{
-            frame = JSON.parse(raw) as Frame;
-        }catch{
-            return;
-        }
-
-        const { type, data, error, sessionId } = frame;
-        const session = typeof sessionId === 'string' ? sessionId : undefined;
-        if(typeof error === 'string') return this.#errors.forEach((handler) => handler(error, session));
-        if(typeof type === 'string') this.#frames.get(type)?.forEach((handler) => handler(data));
-    }
-
-    #setStatus(status: ChannelStatus){
-        if(status === this.#status) return;
-        this.#status = status;
-        this.#statuses.forEach((handler) => handler(status));
-    }
-
-    #clearRetry(){
-        if(this.#retry === null) return;
-        clearTimeout(this.#retry);
-        this.#retry = null;
-    }
+    #onSession = () => {
+        if(session.token !== this.#token) this.reconnect();
+    };
 
     #onVisibility = () => {
-        if(document.visibilityState === 'visible') this.#recover();
+        if(document.visibilityState === 'visible') this.recover();
     };
 
     #recover = () => {
-        if(this.#closed || this.#status === 'closed') return;
-        const state = this.#socket?.readyState;
-        if(state === WebSocket.OPEN || state === WebSocket.CONNECTING) return;
-        this.#attempts = 0;
-        this.#connect();
+        this.recover();
     };
 }
 

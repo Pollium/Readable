@@ -3,12 +3,13 @@ import { configure } from '../lib/app/config';
 import { Queue } from 'bullmq';
 import { randomUUID } from 'node:crypto';
 import { afterAll, describe, expect, it } from 'vitest';
+import { TEST_REDIS } from './env';
 
-configure({ name: 'readable', jwtSecret: null, redis: { host: 'localhost', port: 6379 }, storage: null });
+configure({ name: 'readable', jwtSecret: null, redis: TEST_REDIS, storage: null });
 
 const name = `producer-test-${randomUUID()}`;
 const producer = new QueueProducer<{ batch: number }>(name, { attempts: 3 });
-const queue = new Queue(name, { connection: { host: 'localhost', port: 6379 } });
+const queue = new Queue(name, { connection: TEST_REDIS });
 
 afterAll(async () => {
     await producer.close();

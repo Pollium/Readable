@@ -1,0 +1,886 @@
+{
+    "condor": {
+        "routes": [
+            {
+                "children": []
+            },
+            {
+                "children": [
+                    {
+                        "path": "configurar"
+                    },
+                    {
+                        "path": "entrar"
+                    },
+                    {
+                        "path": "invitacion/:token"
+                    }
+                ]
+            },
+            {
+                "children": [
+                    {
+                        "children": [
+                            {
+                                "path": "cuenta"
+                            },
+                            {
+                                "path": ":projectId/eventos"
+                            },
+                            {
+                                "path": ":projectId/embudos"
+                            },
+                            {
+                                "path": ":projectId/mapas-de-calor"
+                            },
+                            {
+                                "path": ":projectId/errores"
+                            },
+                            {
+                                "path": ":projectId/recorridos"
+                            },
+                            {
+                                "path": ":projectId"
+                            },
+                            {
+                                "path": ":projectId/ajustes"
+                            },
+                            {
+                                "index": true
+                            },
+                            {
+                                "path": ":projectId/retencion"
+                            },
+                            {
+                                "path": ":projectId/sesiones/:sessionId"
+                            },
+                            {
+                                "path": ":projectId/sesiones"
+                            },
+                            {
+                                "path": "equipo"
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "path": "*"
+            }
+        ],
+        "resolutions": {
+            "/src/modules/account/pages/protected/cuenta/index.tsx": {
+                "url": "/cuenta",
+                "pathname": "/cuenta",
+                "chain": [
+                    "layout",
+                    "/src/modules/account/pages/protected/cuenta/index.tsx"
+                ]
+            },
+            "/src/modules/auth/pages/guest/configurar/index.tsx": {
+                "url": "/configurar",
+                "pathname": "/configurar",
+                "chain": [
+                    "/src/modules/auth/pages/guest/configurar/index.tsx"
+                ]
+            },
+            "/src/modules/auth/pages/guest/entrar/index.tsx": {
+                "url": "/entrar",
+                "pathname": "/entrar",
+                "chain": [
+                    "/src/modules/auth/pages/guest/entrar/index.tsx"
+                ]
+            },
+            "/src/modules/auth/pages/guest/invitacion/[token]/index.tsx": {
+                "url": "/invitacion/a-token",
+                "pathname": "/invitacion/a-token",
+                "chain": [
+                    "/src/modules/auth/pages/guest/invitacion/[token]/index.tsx"
+                ]
+            },
+            "/src/modules/events/pages/protected/[projectId]/eventos/index.tsx": {
+                "url": "/a-projectId/eventos",
+                "pathname": "/a-projectId/eventos",
+                "chain": [
+                    "layout",
+                    "/src/modules/events/pages/protected/[projectId]/eventos/index.tsx"
+                ]
+            },
+            "/src/modules/funnels/pages/protected/[projectId]/embudos/index.tsx": {
+                "url": "/a-projectId/embudos",
+                "pathname": "/a-projectId/embudos",
+                "chain": [
+                    "layout",
+                    "/src/modules/funnels/pages/protected/[projectId]/embudos/index.tsx"
+                ]
+            },
+            "/src/modules/heatmaps/pages/protected/[projectId]/mapas-de-calor/index.tsx": {
+                "url": "/a-projectId/mapas-de-calor",
+                "pathname": "/a-projectId/mapas-de-calor",
+                "chain": [
+                    "layout",
+                    "/src/modules/heatmaps/pages/protected/[projectId]/mapas-de-calor/index.tsx"
+                ]
+            },
+            "/src/modules/issues/pages/protected/[projectId]/errores/index.tsx": {
+                "url": "/a-projectId/errores",
+                "pathname": "/a-projectId/errores",
+                "chain": [
+                    "layout",
+                    "/src/modules/issues/pages/protected/[projectId]/errores/index.tsx"
+                ]
+            },
+            "/src/modules/journeys/pages/protected/[projectId]/recorridos/index.tsx": {
+                "url": "/a-projectId/recorridos",
+                "pathname": "/a-projectId/recorridos",
+                "chain": [
+                    "layout",
+                    "/src/modules/journeys/pages/protected/[projectId]/recorridos/index.tsx"
+                ]
+            },
+            "/src/modules/overview/pages/protected/[projectId]/index.tsx": {
+                "url": "/a-projectId",
+                "pathname": "/a-projectId",
+                "chain": [
+                    "layout",
+                    "/src/modules/overview/pages/protected/[projectId]/index.tsx"
+                ]
+            },
+            "/src/modules/projects/pages/protected/[projectId]/ajustes/index.tsx": {
+                "url": "/a-projectId/ajustes",
+                "pathname": "/a-projectId/ajustes",
+                "chain": [
+                    "layout",
+                    "/src/modules/projects/pages/protected/[projectId]/ajustes/index.tsx"
+                ]
+            },
+            "/src/modules/projects/pages/protected/index.tsx": {
+                "url": "/",
+                "pathname": "/",
+                "chain": [
+                    "layout",
+                    "/src/modules/projects/pages/protected/index.tsx"
+                ]
+            },
+            "/src/modules/retention/pages/protected/[projectId]/retencion/index.tsx": {
+                "url": "/a-projectId/retencion",
+                "pathname": "/a-projectId/retencion",
+                "chain": [
+                    "layout",
+                    "/src/modules/retention/pages/protected/[projectId]/retencion/index.tsx"
+                ]
+            },
+            "/src/modules/sessions/pages/protected/[projectId]/sesiones/[sessionId]/index.tsx": {
+                "url": "/a-projectId/sesiones/a-sessionId",
+                "pathname": "/a-projectId/sesiones/a-sessionId",
+                "chain": [
+                    "layout",
+                    "/src/modules/sessions/pages/protected/[projectId]/sesiones/[sessionId]/index.tsx"
+                ]
+            },
+            "/src/modules/sessions/pages/protected/[projectId]/sesiones/index.tsx": {
+                "url": "/a-projectId/sesiones",
+                "pathname": "/a-projectId/sesiones",
+                "chain": [
+                    "layout",
+                    "/src/modules/sessions/pages/protected/[projectId]/sesiones/index.tsx"
+                ]
+            },
+            "/src/modules/team/pages/protected/equipo/index.tsx": {
+                "url": "/equipo",
+                "pathname": "/equipo",
+                "chain": [
+                    "layout",
+                    "/src/modules/team/pages/protected/equipo/index.tsx"
+                ]
+            }
+        }
+    },
+    "learnAdmin": {
+        "routes": [
+            {
+                "children": [
+                    {
+                        "path": "auth/callback"
+                    }
+                ]
+            },
+            {
+                "children": [
+                    {
+                        "path": "sign-in"
+                    }
+                ]
+            },
+            {
+                "children": [
+                    {
+                        "children": [
+                            {
+                                "path": "content/bucket"
+                            },
+                            {
+                                "path": "content/files/:fileId"
+                            },
+                            {
+                                "path": "content/videos"
+                            },
+                            {
+                                "path": "content"
+                            },
+                            {
+                                "path": "content/library"
+                            },
+                            {
+                                "path": "explorer/:collection"
+                            },
+                            {
+                                "path": "explorer"
+                            },
+                            {
+                                "path": "overview/:topic"
+                            },
+                            {
+                                "path": "overview"
+                            },
+                            {
+                                "path": "settings/billing"
+                            },
+                            {
+                                "path": "settings/limits/materials"
+                            },
+                            {
+                                "path": "settings/limits/practice"
+                            },
+                            {
+                                "path": "settings/limits/runtime"
+                            },
+                            {
+                                "path": "settings/limits/speech"
+                            },
+                            {
+                                "path": "settings/limits"
+                            },
+                            {
+                                "path": "settings/mail"
+                            },
+                            {
+                                "path": "settings/plans/preferences"
+                            },
+                            {
+                                "path": "settings/plans/subscriptions"
+                            },
+                            {
+                                "path": "settings/providers/mcp"
+                            },
+                            {
+                                "path": "settings/providers/voice"
+                            },
+                            {
+                                "path": "settings/providers"
+                            },
+                            {
+                                "path": "settings/staff"
+                            },
+                            {
+                                "path": "settings"
+                            },
+                            {
+                                "index": true
+                            },
+                            {
+                                "path": "courses",
+                                "children": [
+                                    {
+                                        "path": ":id"
+                                    },
+                                    {
+                                        "index": true
+                                    }
+                                ]
+                            },
+                            {
+                                "path": "jobs",
+                                "children": [
+                                    {
+                                        "path": ":id"
+                                    },
+                                    {
+                                        "index": true
+                                    },
+                                    {
+                                        "path": "queue"
+                                    }
+                                ]
+                            },
+                            {
+                                "path": "learners",
+                                "children": [
+                                    {
+                                        "path": ":userId"
+                                    },
+                                    {
+                                        "index": true
+                                    }
+                                ]
+                            },
+                            {
+                                "path": "reports",
+                                "children": [
+                                    {
+                                        "path": ":id"
+                                    },
+                                    {
+                                        "index": true
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "path": "*"
+            }
+        ],
+        "resolutions": {
+            "/src/modules/admin/pages/protected/Content/Bucket/index.tsx": {
+                "url": "/content/bucket",
+                "pathname": "/content/bucket",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Content/Bucket/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Content/Files/[fileId]/index.tsx": {
+                "url": "/content/files/a-fileId",
+                "pathname": "/content/files/a-fileId",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Content/Files/[fileId]/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Content/Videos/index.tsx": {
+                "url": "/content/videos",
+                "pathname": "/content/videos",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Content/Videos/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Content/index.tsx": {
+                "url": "/content",
+                "pathname": "/content",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Content/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Content/library/index.tsx": {
+                "url": "/content/library",
+                "pathname": "/content/library",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Content/library/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Courses/[id]/index.tsx": {
+                "url": "/courses/a-id",
+                "pathname": "/courses/a-id",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Courses/layout.tsx",
+                    "/src/modules/admin/pages/protected/Courses/[id]/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Courses/index.tsx": {
+                "url": "/courses",
+                "pathname": "/courses",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Courses/layout.tsx",
+                    "/src/modules/admin/pages/protected/Courses/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Explorer/[collection]/index.tsx": {
+                "url": "/explorer/a-collection",
+                "pathname": "/explorer/a-collection",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Explorer/[collection]/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Explorer/index.tsx": {
+                "url": "/explorer",
+                "pathname": "/explorer",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Explorer/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Jobs/[id]/index.tsx": {
+                "url": "/jobs/a-id",
+                "pathname": "/jobs/a-id",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Jobs/layout.tsx",
+                    "/src/modules/admin/pages/protected/Jobs/[id]/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Jobs/index.tsx": {
+                "url": "/jobs",
+                "pathname": "/jobs",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Jobs/layout.tsx",
+                    "/src/modules/admin/pages/protected/Jobs/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Jobs/queue/index.tsx": {
+                "url": "/jobs/queue",
+                "pathname": "/jobs/queue",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Jobs/layout.tsx",
+                    "/src/modules/admin/pages/protected/Jobs/queue/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Learners/[userId]/index.tsx": {
+                "url": "/learners/a-userId",
+                "pathname": "/learners/a-userId",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Learners/layout.tsx",
+                    "/src/modules/admin/pages/protected/Learners/[userId]/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Learners/index.tsx": {
+                "url": "/learners",
+                "pathname": "/learners",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Learners/layout.tsx",
+                    "/src/modules/admin/pages/protected/Learners/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Overview/[topic]/index.tsx": {
+                "url": "/overview/a-topic",
+                "pathname": "/overview/a-topic",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Overview/[topic]/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Overview/index.tsx": {
+                "url": "/overview",
+                "pathname": "/overview",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Overview/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Reports/[id]/index.tsx": {
+                "url": "/reports/a-id",
+                "pathname": "/reports/a-id",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Reports/layout.tsx",
+                    "/src/modules/admin/pages/protected/Reports/[id]/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Reports/index.tsx": {
+                "url": "/reports",
+                "pathname": "/reports",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Reports/layout.tsx",
+                    "/src/modules/admin/pages/protected/Reports/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Settings/Billing/index.tsx": {
+                "url": "/settings/billing",
+                "pathname": "/settings/billing",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Settings/Billing/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Settings/Limits/Materials/index.tsx": {
+                "url": "/settings/limits/materials",
+                "pathname": "/settings/limits/materials",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Settings/Limits/Materials/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Settings/Limits/Practice/index.tsx": {
+                "url": "/settings/limits/practice",
+                "pathname": "/settings/limits/practice",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Settings/Limits/Practice/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Settings/Limits/Runtime/index.tsx": {
+                "url": "/settings/limits/runtime",
+                "pathname": "/settings/limits/runtime",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Settings/Limits/Runtime/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Settings/Limits/Speech/index.tsx": {
+                "url": "/settings/limits/speech",
+                "pathname": "/settings/limits/speech",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Settings/Limits/Speech/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Settings/Limits/index.tsx": {
+                "url": "/settings/limits",
+                "pathname": "/settings/limits",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Settings/Limits/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Settings/Mail/index.tsx": {
+                "url": "/settings/mail",
+                "pathname": "/settings/mail",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Settings/Mail/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Settings/Plans/Preferences/index.tsx": {
+                "url": "/settings/plans/preferences",
+                "pathname": "/settings/plans/preferences",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Settings/Plans/Preferences/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Settings/Plans/Subscriptions/index.tsx": {
+                "url": "/settings/plans/subscriptions",
+                "pathname": "/settings/plans/subscriptions",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Settings/Plans/Subscriptions/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Settings/Providers/Mcp/index.tsx": {
+                "url": "/settings/providers/mcp",
+                "pathname": "/settings/providers/mcp",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Settings/Providers/Mcp/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Settings/Providers/Voice/index.tsx": {
+                "url": "/settings/providers/voice",
+                "pathname": "/settings/providers/voice",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Settings/Providers/Voice/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Settings/Providers/index.tsx": {
+                "url": "/settings/providers",
+                "pathname": "/settings/providers",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Settings/Providers/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Settings/Staff/index.tsx": {
+                "url": "/settings/staff",
+                "pathname": "/settings/staff",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Settings/Staff/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/Settings/index.tsx": {
+                "url": "/settings",
+                "pathname": "/settings",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/Settings/index.tsx"
+                ]
+            },
+            "/src/modules/admin/pages/protected/index.tsx": {
+                "url": "/",
+                "pathname": "/",
+                "chain": [
+                    "layout",
+                    "/src/modules/admin/pages/protected/index.tsx"
+                ]
+            },
+            "/src/modules/auth/pages/guest/SignIn/index.tsx": {
+                "url": "/sign-in",
+                "pathname": "/sign-in",
+                "chain": [
+                    "/src/modules/auth/pages/guest/SignIn/index.tsx"
+                ]
+            },
+            "/src/modules/auth/pages/public/Auth/Callback/index.tsx": {
+                "url": "/auth/callback",
+                "pathname": "/auth/callback",
+                "chain": [
+                    "/src/modules/auth/pages/public/Auth/Callback/index.tsx"
+                ]
+            }
+        }
+    },
+    "modafinil": {
+        "routes": [
+            {
+                "children": [
+                    {
+                        "index": true
+                    }
+                ]
+            },
+            {
+                "children": []
+            },
+            {
+                "children": []
+            },
+            {
+                "path": "*"
+            }
+        ],
+        "resolutions": {
+            "/src/modules/status/pages/public/index.tsx": {
+                "url": "/",
+                "pathname": "/",
+                "chain": [
+                    "/src/modules/status/pages/public/index.tsx"
+                ]
+            }
+        }
+    },
+    "sentinel": {
+        "routes": [
+            {
+                "children": [
+                    {
+                        "path": "*"
+                    }
+                ]
+            },
+            {
+                "children": [
+                    {
+                        "path": "invitations/:token"
+                    },
+                    {
+                        "path": "setup"
+                    },
+                    {
+                        "path": "sign-in"
+                    }
+                ]
+            },
+            {
+                "children": [
+                    {
+                        "children": [
+                            {
+                                "path": "operators"
+                            },
+                            {
+                                "path": "overview"
+                            },
+                            {
+                                "index": true
+                            },
+                            {
+                                "path": "keys",
+                                "children": [
+                                    {
+                                        "path": ":id"
+                                    },
+                                    {
+                                        "path": "all"
+                                    },
+                                    {
+                                        "index": true
+                                    }
+                                ]
+                            },
+                            {
+                                "path": "models",
+                                "children": [
+                                    {
+                                        "path": ":model"
+                                    },
+                                    {
+                                        "path": "all"
+                                    },
+                                    {
+                                        "index": true
+                                    }
+                                ]
+                            },
+                            {
+                                "path": "providers",
+                                "children": [
+                                    {
+                                        "path": ":id"
+                                    },
+                                    {
+                                        "path": "all"
+                                    },
+                                    {
+                                        "index": true
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "path": "*"
+            }
+        ],
+        "resolutions": {
+            "/src/modules/auth/pages/guest/Invitations/[token]/index.tsx": {
+                "url": "/invitations/a-token",
+                "pathname": "/invitations/a-token",
+                "chain": [
+                    "/src/modules/auth/pages/guest/Invitations/[token]/index.tsx"
+                ]
+            },
+            "/src/modules/auth/pages/guest/Setup/index.tsx": {
+                "url": "/setup",
+                "pathname": "/setup",
+                "chain": [
+                    "/src/modules/auth/pages/guest/Setup/index.tsx"
+                ]
+            },
+            "/src/modules/auth/pages/guest/SignIn/index.tsx": {
+                "url": "/sign-in",
+                "pathname": "/sign-in",
+                "chain": [
+                    "/src/modules/auth/pages/guest/SignIn/index.tsx"
+                ]
+            },
+            "/src/modules/auth/pages/public/*/index.tsx": {
+                "url": "/anywhere",
+                "pathname": "/anywhere",
+                "chain": [
+                    "/src/modules/auth/pages/public/*/index.tsx"
+                ]
+            },
+            "/src/modules/operators/pages/protected/Operators/index.tsx": {
+                "url": "/operators",
+                "pathname": "/operators",
+                "chain": [
+                    "layout",
+                    "/src/modules/operators/pages/protected/Operators/index.tsx"
+                ]
+            },
+            "/src/modules/tower/pages/protected/Keys/[id]/index.tsx": {
+                "url": "/keys/a-id",
+                "pathname": "/keys/a-id",
+                "chain": [
+                    "layout",
+                    "/src/modules/tower/pages/protected/Keys/layout.tsx",
+                    "/src/modules/tower/pages/protected/Keys/[id]/index.tsx"
+                ]
+            },
+            "/src/modules/tower/pages/protected/Keys/all/index.tsx": {
+                "url": "/keys/all",
+                "pathname": "/keys/all",
+                "chain": [
+                    "layout",
+                    "/src/modules/tower/pages/protected/Keys/layout.tsx",
+                    "/src/modules/tower/pages/protected/Keys/all/index.tsx"
+                ]
+            },
+            "/src/modules/tower/pages/protected/Keys/index.tsx": {
+                "url": "/keys",
+                "pathname": "/keys",
+                "chain": [
+                    "layout",
+                    "/src/modules/tower/pages/protected/Keys/layout.tsx",
+                    "/src/modules/tower/pages/protected/Keys/index.tsx"
+                ]
+            },
+            "/src/modules/tower/pages/protected/Models/[model]/index.tsx": {
+                "url": "/models/a-model",
+                "pathname": "/models/a-model",
+                "chain": [
+                    "layout",
+                    "/src/modules/tower/pages/protected/Models/layout.tsx",
+                    "/src/modules/tower/pages/protected/Models/[model]/index.tsx"
+                ]
+            },
+            "/src/modules/tower/pages/protected/Models/all/index.tsx": {
+                "url": "/models/all",
+                "pathname": "/models/all",
+                "chain": [
+                    "layout",
+                    "/src/modules/tower/pages/protected/Models/layout.tsx",
+                    "/src/modules/tower/pages/protected/Models/all/index.tsx"
+                ]
+            },
+            "/src/modules/tower/pages/protected/Models/index.tsx": {
+                "url": "/models",
+                "pathname": "/models",
+                "chain": [
+                    "layout",
+                    "/src/modules/tower/pages/protected/Models/layout.tsx",
+                    "/src/modules/tower/pages/protected/Models/index.tsx"
+                ]
+            },
+            "/src/modules/tower/pages/protected/Overview/index.tsx": {
+                "url": "/overview",
+                "pathname": "/overview",
+                "chain": [
+                    "layout",
+                    "/src/modules/tower/pages/protected/Overview/index.tsx"
+                ]
+            },
+            "/src/modules/tower/pages/protected/Providers/[id]/index.tsx": {
+                "url": "/providers/a-id",
+                "pathname": "/providers/a-id",
+                "chain": [
+                    "layout",
+                    "/src/modules/tower/pages/protected/Providers/layout.tsx",
+                    "/src/modules/tower/pages/protected/Providers/[id]/index.tsx"
+                ]
+            },
+            "/src/modules/tower/pages/protected/Providers/all/index.tsx": {
+                "url": "/providers/all",
+                "pathname": "/providers/all",
+                "chain": [
+                    "layout",
+                    "/src/modules/tower/pages/protected/Providers/layout.tsx",
+                    "/src/modules/tower/pages/protected/Providers/all/index.tsx"
+                ]
+            },
+            "/src/modules/tower/pages/protected/Providers/index.tsx": {
+                "url": "/providers",
+                "pathname": "/providers",
+                "chain": [
+                    "layout",
+                    "/src/modules/tower/pages/protected/Providers/layout.tsx",
+                    "/src/modules/tower/pages/protected/Providers/index.tsx"
+                ]
+            },
+            "/src/modules/tower/pages/protected/index.tsx": {
+                "url": "/",
+                "pathname": "/",
+                "chain": [
+                    "layout",
+                    "/src/modules/tower/pages/protected/index.tsx"
+                ]
+            }
+        }
+    }
+}

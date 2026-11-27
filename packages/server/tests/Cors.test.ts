@@ -2,8 +2,9 @@ import Application from '../lib/app/Application';
 import { ModuleDiscovery } from '../lib/app/discovery';
 import { configure } from '../lib/app/config';
 import { afterAll, describe, expect, it } from 'vitest';
+import { TEST_REDIS } from './env';
 
-configure({ name: 'readable', jwtSecret: null, redis: { host: 'localhost', port: 6379 }, storage: null });
+configure({ name: 'readable', jwtSecret: null, redis: TEST_REDIS, storage: null });
 
 const application = new Application({
     port: 0,
@@ -42,5 +43,44 @@ describe('Application CORS', () => {
             origin: 'https://app.example',
             credentials: 'true'
         });
+    });
+});
+
+describe('Application CORS with CORS_ORIGIN=*', () => {
+    const anyOrigin = new Application({
+        port: 0,
+        corsOrigins: ['*'],
+        exposedHeaders: ['ETag', 'Content-Length'],
+        log: { level: 'silent', pretty: false },
+        discover: async () => ModuleDiscovery.merge([])
+    });
+
+    afterAll(() => anyOrigin.stop());
+
+    it('reflects any origin, with credentials, and exposes the headers it was given', async () => {
+        const reflecting = await anyOrigin.build({ queues: false });
+        reflecting.get('/trajectories', async () => ({ ok: true }));
+
+        const res = await reflecting.inject({ method: 'GET', url: '/trajectories', headers: { origin: 'http://localhost:5173' } });
+        const preflight = await reflecting.inject({
+            method: 'OPTIONS',
+            url: '/trajectories',
+            headers: { origin: 'https://desktop.volt', 'access-control-request-method': 'PUT' }
+        });
+
+        expect(res.headers).toMatchObject({
+            'access-control-allow-origin': 'http://localhost:5173',
+            'access-control-allow-credentials': 'true',
+            'access-control-expose-headers': 'x-trace-id, ETag, Content-Length'
+        });
+        expect(preflight.headers['access-control-allow-origin']).toBe('https://desktop.volt');
+    });
+});
+
+describe('Application CORS without exposed headers', () => {
+    it('exposes only the trace id', async () => {
+        const res = await app.inject({ method: 'GET', url: '/private', headers: { origin: 'https://app.example' } });
+
+        expect(res.headers['access-control-expose-headers']).toBe('x-trace-id');
     });
 });

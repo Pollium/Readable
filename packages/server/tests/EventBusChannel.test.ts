@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { TEST_REDIS } from './env';
 
 const redis = vi.hoisted(() => ({
+    status: 'ready',
     publish: vi.fn(),
     subscribe: vi.fn(),
     on: vi.fn(),
+    once: vi.fn(),
     quit: vi.fn()
 }));
 
@@ -19,7 +22,7 @@ const remoteBusOf = async (name: string) => {
     vi.stubEnv('VITEST', undefined);
     vi.resetModules();
     const { configure } = await import('../lib/app/config');
-    configure({ name, jwtSecret: null, redis: { host: 'localhost', port: 6379 }, storage: null });
+    configure({ name, jwtSecret: null, redis: TEST_REDIS, storage: null });
     const { eventBus } = await import('../lib/events/EventBus');
     vi.unstubAllEnvs();
 

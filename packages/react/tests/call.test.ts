@@ -1,9 +1,27 @@
+import { configure } from '../lib/app/config';
 import { call } from '../lib/http/call';
 import { ApiError } from '../lib/http/ApiError';
 import { session } from '../lib/session/session';
 import { fakeApi } from './support/fake-api';
 import { noteRoutes } from './support/notes';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+const note = { id: 'n1', title: 'a' };
+
+const hanging = () => vi.stubGlobal('fetch', (_: string, init: RequestInit) => new Promise((_resolve, reject) => {
+    init.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+}));
+
+const endlessBody = (signals: AbortSignal[] = []) => vi.stubGlobal('fetch', async (_: string, init: RequestInit) => {
+    if(init.signal) signals.push(init.signal);
+    return new Response(new ReadableStream({
+        start(controller){
+            init.signal?.addEventListener('abort', () => controller.error(init.signal?.reason));
+        }
+    }));
+});
+
+const later = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe('call', () => {
     afterEach(() => session.end());
@@ -157,5 +175,193 @@ describe('call', () => {
         };
 
         expect(typed).toBeTypeOf('function');
+    });
+
+    it('answers the text of a call read as text, without unwrapping it', async () => {
+        const api = fakeApi();
+        api.on('GET', '/notebooks/nb1/export', { raw: '{"data":"kept"}', headers: { 'Content-Type': 'text/plain' } });
+
+        expect(await call(noteRoutes.download, { path: { notebookId: 'nb1' }, as: 'text' })).toBe('{"data":"kept"}');
+    });
+
+    it('answers a blob and the bytes of a call read as them', async () => {
+        const api = fakeApi();
+        api.on('GET', '/notebooks/nb1/export', { raw: new Uint8Array([1, 2, 3]), headers: { 'Content-Type': 'application/octet-stream' } });
+        const path = { notebookId: 'nb1' };
+
+        const blob = await call(noteRoutes.download, { path, as: 'blob' });
+        const bytes = await call(noteRoutes.download, { path, as: 'arrayBuffer' });
+
+        expect(blob).toBeInstanceOf(Blob);
+        expect([...new Uint8Array(await blob.arrayBuffer())]).toEqual([1, 2, 3]);
+        expect([...new Uint8Array(bytes)]).toEqual([1, 2, 3]);
+    });
+
+    it('answers the response itself, so its headers can be read', async () => {
+        const api = fakeApi();
+        api.on('GET', '/notebooks/nb1/export', { raw: 'a,b', headers: { 'Content-Disposition': 'attachment; filename="notes.csv"' } });
+
+        const response = await call(noteRoutes.download, { path: { notebookId: 'nb1' }, as: 'response' });
+
+        expect(response.headers.get('Content-Disposition')).toBe('attachment; filename="notes.csv"');
+        expect(await response.text()).toBe('a,b');
+    });
+
+    it('throws the code the api answered for a call read as anything but JSON', async () => {
+        const api = fakeApi();
+        api.on('GET', '/notebooks/nb1/export', { status: 404, body: { error: 'Note::NotFound' } });
+
+        await expect(call(noteRoutes.download, { path: { notebookId: 'nb1' }, as: 'blob' })).rejects.toMatchObject({ status: 404, code: 'Note::NotFound' });
+        await expect(call(noteRoutes.download, { path: { notebookId: 'nb1' }, as: 'response' })).rejects.toBeInstanceOf(ApiError);
+    });
+
+    it('types the answer by how the call reads it', () => {
+        const typed = async () => {
+            const blob: Blob = await call(noteRoutes.download, { path: { notebookId: 'nb1' }, as: 'blob' });
+            const text: string = await call(noteRoutes.me, { as: 'text' });
+            const me: { id: string } = await call(noteRoutes.me);
+            // @ts-expect-error a call read as bytes does not answer the endpoint's output
+            const wrong: { id: string } = await call(noteRoutes.me, { as: 'arrayBuffer' });
+            return [blob, text, me, wrong];
+        };
+
+        expect(typed).toBeTypeOf('function');
+    });
+
+    it('sends a blob, bytes or form fields as they are', async () => {
+        const api = fakeApi();
+        api.on('POST', '/notebooks/nb1/notes', { status: 201, body: { data: note } });
+        const path = { notebookId: 'nb1' };
+        const blob = new Blob(['a'], { type: 'text/csv' });
+        const bytes = new Uint8Array([1, 2]);
+        const fields = new URLSearchParams({ title: 'a' });
+
+        await call(noteRoutes.create, { path, body: blob });
+        await call(noteRoutes.create, { path, body: bytes, contentType: 'application/octet-stream' });
+        await call(noteRoutes.create, { path, body: bytes.buffer });
+        await call(noteRoutes.create, { path, body: fields });
+
+        expect(api.sent.map((sent) => sent.init.body)).toEqual([blob, bytes, bytes.buffer, fields]);
+        expect(api.sent.map((sent) => sent.headers['Content-Type'])).toEqual([undefined, 'application/octet-stream', undefined, undefined]);
+    });
+
+    it('sends a string it is given a content type for as it is, and any other as JSON', async () => {
+        const api = fakeApi();
+        api.on('POST', '/notebooks/nb1/notes', { status: 201, body: { data: note } });
+        const path = { notebookId: 'nb1' };
+
+        await call(noteRoutes.create, { path, body: '{"title":"a"}', contentType: 'application/x-ipynb+json' });
+        await call(noteRoutes.create, { path, body: { title: 'a' }, contentType: 'application/merge-patch+json' });
+
+        expect(api.sent[0].init.body).toBe('{"title":"a"}');
+        expect(api.sent[0].headers['Content-Type']).toBe('application/x-ipynb+json');
+        expect(api.sent[1].init.body).toBe('{"title":"a"}');
+        expect(api.sent[1].headers['Content-Type']).toBe('application/merge-patch+json');
+    });
+
+    it('never sends the Content-Type a caller gives with a form, so fetch writes its boundary', async () => {
+        const api = fakeApi();
+        api.on('POST', '/notebooks/nb1/notes', { status: 201, body: { data: note } });
+
+        await call(noteRoutes.create, { path: { notebookId: 'nb1' }, body: new FormData(), headers: { 'content-type': 'multipart/form-data', 'X-Upload': 'yes' } });
+
+        expect(api.sent[0].headers).toEqual({ 'X-Upload': 'yes' });
+    });
+
+    it('sends one Content-Type, the caller\'s, whatever case it is written in', async () => {
+        const api = fakeApi();
+        api.on('POST', '/notebooks/nb1/notes', { status: 201, body: { data: note } });
+
+        await call(noteRoutes.create, { path: { notebookId: 'nb1' }, body: { title: 'a' }, headers: { 'content-type': 'application/vnd.notes+json' } });
+
+        expect(api.sent[0].headers).toEqual({ 'Content-Type': 'application/vnd.notes+json' });
+    });
+
+    it('takes a string body only with its content type', () => {
+        const typed = () => {
+            // @ts-expect-error a string is sent as it is only when its content type is given
+            void call(noteRoutes.create, { path: { notebookId: 'nb1' }, body: '{"title":"a"}' });
+            void call(noteRoutes.create, { path: { notebookId: 'nb1' }, body: '{"title":"a"}', contentType: 'application/json' });
+            void call(noteRoutes.remove, { path: { notebookId: 'nb1', noteId: 'n1' }, body: new Blob([]) });
+        };
+
+        expect(typed).toBeTypeOf('function');
+    });
+
+    it('gives up on a call that takes longer than the time configured, as a network error', async () => {
+        hanging();
+        configure({ name: 'notes', apiUrl: 'http://api.test', timeoutMs: 20 });
+
+        await expect(call(noteRoutes.me)).rejects.toMatchObject({ status: 0, message: 'Network::Timeout', isNetworkError: true });
+    });
+
+    it('takes the time a call names over the one configured, and 0 as no limit', async () => {
+        const api = fakeApi();
+        api.on('GET', '/me', async () => {
+            await later(40);
+            return { body: { data: { id: 'u1' } } };
+        });
+        configure({ name: 'notes', apiUrl: 'http://api.test', timeoutMs: 10 });
+
+        expect(await call(noteRoutes.me, { timeoutMs: 0 })).toEqual({ id: 'u1' });
+        await expect(call(noteRoutes.me, { timeoutMs: 100 })).resolves.toEqual({ id: 'u1' });
+        await expect(call(noteRoutes.me)).rejects.toThrow('Network::Timeout');
+    });
+
+    it('times the body of the answer too', async () => {
+        endlessBody();
+
+        await expect(call(noteRoutes.me, { timeoutMs: 20 })).rejects.toThrow('Network::Timeout');
+    });
+
+    it('stops timing a response handed back unread once its headers arrive', async () => {
+        const signals: AbortSignal[] = [];
+        endlessBody(signals);
+
+        await call(noteRoutes.me, { as: 'response', timeoutMs: 20 });
+        await later(40);
+
+        expect(signals[0].aborted).toBe(false);
+    });
+
+    it('rejects with the caller\'s own reason when it aborts a timed call', async () => {
+        hanging();
+        const controller = new AbortController();
+
+        const answer = call(noteRoutes.me, { signal: controller.signal, timeoutMs: 1_000 });
+        controller.abort(new Error('left the page'));
+
+        await expect(answer).rejects.toThrow('left the page');
+    });
+
+    it('lets the app change every request before it is sent', async () => {
+        const api = fakeApi();
+        api.on('GET', '/me', { body: { data: { id: 'u1' } } });
+        const urls: string[] = [];
+        configure({
+            name: 'notes',
+            apiUrl: 'http://api.test',
+            onRequest: async (init, url) => {
+                urls.push(url);
+                init.headers['x-trace-id'] = 'trace-1';
+            }
+        });
+        session.start('token-a');
+
+        await call(noteRoutes.me, { query: { full: true } });
+
+        expect(urls).toEqual(['http://api.test/me?full=true']);
+        expect(api.sent[0].headers).toEqual({ Authorization: 'Bearer token-a', 'x-trace-id': 'trace-1' });
+    });
+
+    it('sends the credentials configured, or the ones a call names', async () => {
+        const api = fakeApi();
+        api.on('GET', '/me', { body: { data: { id: 'u1' } } });
+        configure({ name: 'notes', apiUrl: 'http://api.test', credentials: 'include' });
+
+        await call(noteRoutes.me);
+        await call(noteRoutes.me, { credentials: 'omit' });
+
+        expect(api.sent.map((sent) => sent.init.credentials)).toEqual(['include', 'omit']);
     });
 });

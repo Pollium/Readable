@@ -4,10 +4,12 @@ import { ApiError } from '../http/ApiError';
 import {
     AuthErrors,
     baseCodeOf,
+    DatabaseErrors,
     ErrorCode,
     ErrorTable,
     RateLimitErrors,
     RequestErrors,
+    RequestProtocolErrors,
     ServerErrors
 } from '@pollium/readable-contracts/errors';
 
@@ -23,12 +25,18 @@ export type ReadableErrorCode =
     | ErrorCode<typeof RequestErrors>
     | ErrorCode<typeof ServerErrors>;
 
+// Codes readable answers since 0.5. An app may name them; one that does not describes them with
+// `unknown`, so adding them broke no app's copy.
+export type OptionalReadableErrorCode =
+    | ErrorCode<typeof DatabaseErrors>
+    | ErrorCode<typeof RequestProtocolErrors>;
+
 type Codes = Readonly<Partial<Record<string, Copy>>>;
 
 export interface AppCopy{
     offline: Copy;
     unknown: string | ((code: string) => string);
-    codes: Readonly<Record<ReadableErrorCode, Copy>> & Codes;
+    codes: Readonly<Record<ReadableErrorCode, Copy>> & Readonly<Partial<Record<OptionalReadableErrorCode, Copy>>> & Codes;
     fields?: Partial<FieldCopy>;
 }
 
@@ -45,11 +53,12 @@ const describing = (codes: Codes): ErrorCopy => {
         if(error === null || error === undefined) return null;
 
         const app = settings().copy;
-        if(error instanceof ApiError && error.isNetworkError) return app === null ? error.message : textOf(app.offline);
-
         const code = baseCodeOf(error.message);
         const copy = codes[code] ?? app?.codes[code];
         if(copy !== undefined) return textOf(copy);
+
+        // A network error is `offline` unless its code is named, as an app may name Network::Timeout.
+        if(error instanceof ApiError && error.isNetworkError) return app === null ? error.message : textOf(app.offline);
         if(app === null) return error.message;
         return typeof app.unknown === 'function' ? app.unknown(code) : app.unknown;
     };

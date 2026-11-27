@@ -2,12 +2,15 @@ import Application from '../lib/app/Application';
 import { ModuleDiscovery } from '../lib/app/discovery';
 import { createDataSource } from '../lib/database/data-source';
 import { configure } from '../lib/app/config';
-import { brotliDecompressSync, gunzipSync } from 'node:zlib';
+import { Readable } from 'node:stream';
+import { brotliDecompressSync, gunzipSync, gzipSync } from 'node:zlib';
 import { afterAll, describe, expect, it } from 'vitest';
+import { TEST_DATABASE_URL, TEST_REDIS } from './env';
 
-const DATABASE_URL = 'postgres://pollium:pollium@localhost:5432/pollium';
-const REDIS = { host: 'localhost', port: 6379 };
+const DATABASE_URL = TEST_DATABASE_URL;
+const REDIS = TEST_REDIS;
 const COURSES = Array.from({ length: 200 }, (_, index) => ({ id: index, name: `Course ${index}`, subject: 'math' }));
+const BIG = Buffer.from(JSON.stringify({ data: COURSES }));
 
 configure({ name: 'readable', jwtSecret: null, redis: REDIS, storage: null });
 
@@ -23,6 +26,9 @@ const app = await application.build({ queues: false });
 app.get('/courses', () => ({ data: COURSES }));
 app.get('/tiny', () => ({ ok: true }));
 app.get('/pdf', (_, reply) => reply.type('application/pdf').send(Buffer.alloc(4096, 1)));
+app.get('/stream', (_, reply) => reply.type('application/json').header('content-length', BIG.length).send(Readable.from([BIG])));
+app.get('/encoded', (_, reply) => reply.type('application/json').header('content-encoding', 'gzip').send(gzipSync(BIG)));
+app.get('/part', (_, reply) => reply.code(206).type('text/plain').header('content-range', `bytes 0-${BIG.length - 1}/99999`).send(BIG));
 
 const get = (url: string, encoding?: string) => app.inject({
     method: 'GET',
@@ -60,5 +66,23 @@ describe('Application response compression', () => {
         expect(tiny.headers['content-encoding']).toBeUndefined();
         expect(pdf.headers['content-encoding']).toBeUndefined();
         expect(pdf.rawPayload.length).toBe(4096);
+    });
+
+    it('sends a stream as it comes, with the length it was given', async () => {
+        const res = await get('/stream', 'br');
+
+        expect(res.headers['content-encoding']).toBeUndefined();
+        expect(res.headers['content-length']).toBe(String(BIG.length));
+        expect(res.rawPayload).toEqual(BIG);
+    });
+
+    it('never encodes a body twice, nor a part of a file', async () => {
+        const encoded = await get('/encoded', 'br');
+        const part = await get('/part', 'br');
+
+        expect(encoded.headers['content-encoding']).toBe('gzip');
+        expect(gunzipSync(encoded.rawPayload)).toEqual(BIG);
+        expect(part.headers['content-encoding']).toBeUndefined();
+        expect(part.rawPayload).toEqual(BIG);
     });
 });

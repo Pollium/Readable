@@ -1,6 +1,7 @@
+import { listPages, MetaFiles, metaOf, PageMeta } from './meta';
 import { registerLoader } from './prefetch';
 import { defineErrors } from '@pollium/readable-contracts/errors';
-import { ComponentType, lazy, ReactElement, Suspense } from 'react';
+import { ComponentType, lazy, ReactElement, ReactNode, Suspense } from 'react';
 import { RouteObject } from 'react-router-dom';
 
 export type PageTier = 'guest' | 'public' | 'protected';
@@ -18,6 +19,11 @@ export interface Page{
     kind: PageKind;
     path: string;
     load: () => Promise<PageModule>;
+    meta?: PageMeta;
+}
+
+export interface RouteBuild{
+    pending?: ReactNode;
 }
 
 const PageErrors = defineErrors({
@@ -36,9 +42,20 @@ const toKebab = (segment: string): string => segment
     .toLowerCase();
 
 const toSegment = (raw: string): string => {
+    const optional = /^\[\[(.+)\]\]$/.exec(raw);
+    if(optional !== null) return `:${optional[1]}?`;
+
     const param = /^\[(.+)\]$/.exec(raw);
     return param === null ? toKebab(raw) : `:${param[1]}`;
 };
+
+// Every path a page answers: one with each optional segment and one without it, so a page at
+// /ai/:conversationId? collides with a page at /ai.
+const answersOf = (path: string): string[] => path.split('/').filter(Boolean)
+    .reduce<string[]>((paths, segment) => segment.endsWith('?')
+        ? paths.flatMap((path) => [path, `${path}/${segment.slice(0, -1)}`])
+        : paths.map((path) => `${path}/${segment}`), [''])
+    .map((path) => path === '' ? '/' : path);
 
 export const pageOf = (file: string): Omit<Page, 'load'> => {
     const match = PAGE_FILE.exec(file);
@@ -53,23 +70,29 @@ export const pageOf = (file: string): Omit<Page, 'load'> => {
     };
 };
 
-export const pagesOf = (files: PageFiles): Page[] => {
-    const pages = Object.entries(files).map(([file, load]) => ({ ...pageOf(file), load: load as Page['load'] }));
+export const pagesOf = (files: PageFiles, meta?: MetaFiles): Page[] => {
+    const pages = Object.entries(files).map(([file, load]): Page => {
+        const page = pageOf(file);
+        return { ...page, load: load as Page['load'], meta: page.kind === 'page' ? metaOf(file, meta) : undefined };
+    });
 
     const seen = new Set<string>();
     for(const page of pages){
-        const key = `${page.tier} ${page.kind} ${page.path}`;
-        if(seen.has(key)) throw PageErrors.DuplicatePath(key);
-        seen.add(key);
+        for(const path of answersOf(page.path)){
+            const key = `${page.tier} ${page.kind} ${path}`;
+            if(seen.has(key)) throw PageErrors.DuplicatePath(key);
+            seen.add(key);
+        }
         registerLoader(page.path, page.load);
     }
+    listPages(pages.filter((page) => page.kind === 'page').map(({ tier, path, meta }) => ({ tier, path, meta })));
     return pages;
 };
 
-const lazyElement = (load: Page['load']): ReactElement => {
+const lazyElement = (load: Page['load'], pending: ReactNode = null): ReactElement => {
     const Component = lazy(load);
     return (
-        <Suspense fallback={null}>
+        <Suspense fallback={pending}>
             <Component />
         </Suspense>
     );
@@ -77,30 +100,37 @@ const lazyElement = (load: Page['load']): ReactElement => {
 
 const depthOf = (path: string): number => path.split('/').filter(Boolean).length;
 
-const owns = (layout: Page, page: Page): boolean => page.path === layout.path
-    || (page.path.startsWith(`${layout.path === '/' ? '' : layout.path}/`) && depthOf(page.path) === depthOf(layout.path) + 1);
+const holds = (folder: string, path: string): boolean =>
+    folder === '/' || path === folder || path.startsWith(`${folder}/`);
 
 const relative = (path: string, parent: string | null): string =>
     parent === null || parent === '/' ? path.replace(/^\//, '') : path.slice(parent.length + 1);
 
-const routeOf = (page: Page, parent: string | null): RouteObject => {
-    const path = relative(page.path, parent);
-    return path === ''
-        ? { index: true, element: lazyElement(page.load) }
-        : { path, element: lazyElement(page.load) };
+const routeOf = ({ tier, path, load, meta }: Page, parent: string | null, pending: ReactNode): RouteObject => {
+    const route = { element: lazyElement(load, pending), handle: { page: { tier, path, meta } } };
+    const at = relative(path, parent);
+    return at === '' ? { index: true, ...route } : { path: at, ...route };
 };
 
-export const routesOf = (pages: readonly Page[]): RouteObject[] => {
+// A layout frames every page in its folder and below it. When layouts sit inside each other, a page is
+// framed by the deepest one that holds it, inside the ones above that.
+export const routesOf = (pages: readonly Page[], { pending }: RouteBuild = {}): RouteObject[] => {
     const layouts = pages.filter((page) => page.kind === 'layout');
-    const owned = pages.filter((page) => page.kind === 'page');
-    const ownerOf = (page: Page) => layouts.find((layout) => owns(layout, page));
+    const frameOf = (page: Page): Page | undefined => layouts
+        .filter((layout) => holds(layout.path, page.path) && (page.kind === 'page' || layout.path !== page.path))
+        .sort((a, b) => depthOf(b.path) - depthOf(a.path))[0];
 
-    return [
-        ...owned.filter((page) => ownerOf(page) === undefined).map((page) => routeOf(page, null)),
-        ...layouts.map((layout) => ({
-            path: layout.path.replace(/^\//, ''),
-            element: lazyElement(layout.load),
-            children: owned.filter((page) => ownerOf(page) === layout).map((page) => routeOf(page, layout.path))
-        }))
-    ];
+    const framedBy = (parent: Page | undefined): RouteObject[] => {
+        const parentPath = parent?.path ?? null;
+        return [
+            ...pages.filter((page) => page.kind === 'page' && frameOf(page) === parent).map((page) => routeOf(page, parentPath, pending)),
+            ...layouts.filter((layout) => frameOf(layout) === parent).map((layout) => ({
+                path: relative(layout.path, parentPath),
+                element: lazyElement(layout.load, pending),
+                children: framedBy(layout)
+            }))
+        ];
+    };
+
+    return framedBy(undefined);
 };

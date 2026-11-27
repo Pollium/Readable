@@ -1,11 +1,12 @@
 import { configure } from '../lib/app/config';
 import { copyFor } from '../lib/errors/copy';
-import { useForm, Validator } from '../lib/forms/useForm';
+import { ApiError } from '../lib/http/ApiError';
+import { LocalFormOptions, SubmitCall, useForm, Validator } from '../lib/forms/useForm';
 import { useQuery } from '../lib/query/useQuery';
 import { fakeApi } from './support/fake-api';
 import { CreateNoteInput, NoteErrors, noteRoutes } from './support/notes';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 
 const validate: Validator<CreateNoteInput> = (input) => input.title.length >= 3 && input.title.length <= 20
     ? { success: true }
@@ -159,5 +160,184 @@ describe('useForm', () => {
         act(() => result.current.reset());
 
         expect(result.current).toMatchObject({ values: { title: '' }, errors: {}, submitError: null });
+    });
+});
+
+interface SignInInput{
+    email: string;
+    password: string;
+}
+
+const signInRules: Validator<SignInInput> = ({ email, password }) => {
+    const errors = [
+        ...email.includes('@') ? [] : [{ path: '$input.email', expected: 'string & Format<"email">', value: email }],
+        ...password.length >= 8 ? [] : [{ path: '$input.password', expected: '(string & MinLength<8>)', value: password }]
+    ];
+    return errors.length === 0 ? { success: true } : { success: false, errors };
+};
+
+const signingIn = (options: Partial<LocalFormOptions<SignInInput, string>> = {}) =>
+    renderHook(() => useForm<SignInInput, string>({
+        initial: { email: '', password: '' },
+        validate: signInRules,
+        ...options
+    }));
+
+describe('a form with no endpoint', () => {
+    it('submits through its own submit, and sends nothing itself', async () => {
+        const api = fakeApi();
+        const submit = vi.fn(async ({ email }: SignInInput) => `token-for-${email}`);
+        const onDone = vi.fn();
+        const { result } = signingIn({ submit, onDone });
+
+        act(() => result.current.setValues({ email: 'ada@example.com', password: 'correct horse' }));
+        act(() => result.current.handleSubmit());
+
+        await waitFor(() => expect(onDone).toHaveBeenCalledWith('token-for-ada@example.com', { email: 'ada@example.com', password: 'correct horse' }));
+        expect(submit).toHaveBeenCalledOnce();
+        expect(api.sent).toHaveLength(0);
+    });
+
+    it('puts what its submit throws on the fields, or above the form', async () => {
+        fakeApi();
+        const refused = new ApiError(400, 'Request::ValidationFailed', { errors: { email: 'No account with this email' } });
+        const onFields = signingIn({ submit: async () => { throw refused; } });
+        act(() => onFields.result.current.setValues({ email: 'ada@example.com', password: 'correct horse' }));
+        act(() => onFields.result.current.handleSubmit());
+        await waitFor(() => expect(onFields.result.current.errors.email).toBe('No account with this email'));
+        expect(onFields.result.current.submitError).toBeNull();
+
+        const above = signingIn({ submit: async () => { throw new Error('The health probe timed out'); } });
+        act(() => above.result.current.setValues({ email: 'ada@example.com', password: 'correct horse' }));
+        act(() => above.result.current.handleSubmit());
+        await waitFor(() => expect(above.result.current.submitError).toBe('The health probe timed out'));
+    });
+
+    it('takes its values\' type from initial, and its output\'s from submit', () => {
+        const { result } = renderHook(() => useForm({
+            initial: { name: '', description: '' },
+            submit: async ({ name }) => ({ teamId: `team-${name}` })
+        }));
+
+        expectTypeOf(result.current.watch('name')).toEqualTypeOf<string>();
+        expectTypeOf(result.current.handleSubmit).parameter(1).toEqualTypeOf<SubmitCall<{ name: string; description: string }, { teamId: string }> | undefined>();
+    });
+
+    it('checks its values and hands them on when it has no submit', async () => {
+        const onDone = vi.fn();
+        const { result } = signingIn({ onDone });
+
+        act(() => result.current.handleSubmit());
+        expect(result.current.errors).toEqual({ email: 'Invalid email', password: 'At least 8 characters' });
+
+        act(() => result.current.setValues({ email: 'ada@example.com', password: 'correct horse' }));
+        act(() => result.current.handleSubmit());
+        await waitFor(() => expect(onDone).toHaveBeenCalledWith(undefined, { email: 'ada@example.com', password: 'correct horse' }));
+    });
+});
+
+describe('a form checked a step at a time', () => {
+    it('checks one field, says whether it passed, and leaves the others alone', () => {
+        const { result } = signingIn();
+
+        let passed = true;
+        act(() => {
+            passed = result.current.validateField('email');
+        });
+
+        expect(passed).toBe(false);
+        expect(result.current.errors).toEqual({ email: 'Invalid email' });
+
+        act(() => result.current.field('email').onChange('ada@example.com'));
+        expect(result.current.errors).toEqual({});
+        act(() => {
+            passed = result.current.validateField('email');
+        });
+        expect(passed).toBe(true);
+    });
+
+    it('checks a step\'s fields, or every field with none named', () => {
+        const { result } = signingIn();
+        act(() => result.current.setValues({ email: 'ada@example.com' }));
+
+        let passed = false;
+        act(() => {
+            passed = result.current.validateFields(['email']);
+        });
+        expect(passed).toBe(true);
+        expect(result.current.errors).toEqual({});
+
+        act(() => {
+            passed = result.current.validateFields();
+        });
+        expect(passed).toBe(false);
+        expect(result.current.errors).toEqual({ password: 'At least 8 characters' });
+    });
+
+    it('submits one step through its own action, checking only that step', async () => {
+        fakeApi();
+        const checkEmail = vi.fn(async ({ email }: SignInInput) => `exists:${email}`);
+        const onDone = vi.fn();
+        const { result } = signingIn({ submit: async () => 'signed in', onDone });
+
+        act(() => result.current.setValues({ email: 'ada@example.com' }));
+        act(() => result.current.handleSubmit(null, { fields: ['email'], submit: checkEmail }));
+
+        await waitFor(() => expect(onDone).toHaveBeenCalledWith('exists:ada@example.com', { email: 'ada@example.com', password: '' }));
+        expect(result.current.errors).toEqual({});
+        expect(result.current.submitting).toBe(false);
+    });
+});
+
+describe('a form', () => {
+    it('watches one value, or all of them', () => {
+        const { result } = signingIn();
+
+        act(() => result.current.field('email').onChange('ada@'));
+
+        expect(result.current.watch('email')).toBe('ada@');
+        expect(result.current.watch()).toEqual({ email: 'ada@', password: '' });
+    });
+
+    it('resets to new values, and goes back to them after that', () => {
+        const { result } = signingIn();
+
+        act(() => result.current.reset({ email: 'ada@example.com', password: '' }));
+        expect(result.current.values).toEqual({ email: 'ada@example.com', password: '' });
+
+        act(() => result.current.setValues({ email: 'grace@example.com' }));
+        act(() => result.current.reset());
+        expect(result.current.values).toEqual({ email: 'ada@example.com', password: '' });
+    });
+
+    it('takes a field error from the app, and checks the field again on the next change', () => {
+        const { result } = signingIn();
+
+        act(() => result.current.setFieldError('email', 'Already invited'));
+        expect(result.current.field('email')).toMatchObject({ isInvalid: true, errorMessage: 'Already invited' });
+
+        act(() => result.current.field('email').onChange('grace@example.com'));
+        expect(result.current.errors.email).toBeUndefined();
+
+        act(() => result.current.setFieldError('password', 'Too common'));
+        act(() => result.current.setFieldError('password', null));
+        expect(result.current.errors).toEqual({});
+    });
+
+    it('submits through another action for one call, without sending to its endpoint', async () => {
+        const api = fakeApi();
+        api.on('GET', '/notebooks/nb1/notes', { body: { data: [] } });
+        const list = renderHook(() => useQuery(noteRoutes.list, { path: { notebookId: 'nb1' } }));
+        await waitFor(() => expect(list.result.current.data).toEqual([]));
+        const draft = vi.fn(async (input: CreateNoteInput) => ({ id: 'draft', ...input }));
+        const onDone = vi.fn();
+        const { result } = creating({ onDone });
+
+        act(() => result.current.field('title').onChange('Groceries'));
+        act(() => result.current.handleSubmit(undefined, { submit: draft }));
+
+        await waitFor(() => expect(onDone).toHaveBeenCalledWith({ id: 'draft', title: 'Groceries' }, { title: 'Groceries' }));
+        expect(api.calls('POST', '/notebooks/nb1/notes')).toHaveLength(0);
+        expect(api.calls('GET', '/notebooks/nb1/notes')).toHaveLength(1);
     });
 });

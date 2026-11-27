@@ -1,11 +1,17 @@
 import { ClassMetadata } from '../app/metadata';
+import { streamedBodyOf } from './stream-body';
+import { Form, UploadOptions, formOf } from './multipart';
 import { RequestError, ValidationError } from '../app/errors';
 import { IValidation } from 'typia';
 import { FastifyReply, FastifyRequest } from 'fastify';
 
+export type { FormValues, UploadOptions } from './multipart';
+
 export interface UploadedFile{
     filename: string;
     buffer: Buffer;
+    field?: string;
+    mimetype?: string;
 }
 
 export type ParamResolver = (req: FastifyRequest, reply?: FastifyReply) => unknown;
@@ -49,12 +55,34 @@ export const getParamResolvers = (ctor: object, handlerName: string | symbol): P
     return resolvers;
 };
 
+export interface IdFormat{
+    test(value: string): boolean;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+let ids: IdFormat | undefined;
+
+export const configureIds = (format?: IdFormat) => {
+    ids = format;
+};
+
+const matches = (format: IdFormat, value: string): boolean => {
+    // A RegExp with the g or y flag remembers where its last match ended and would refuse every
+    // other id.
+    if(format instanceof RegExp) format.lastIndex = 0;
+    return format.test(value);
+};
+
 export const parseId = (raw: unknown): string => {
-    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
     if(typeof raw !== 'string') throw RequestError.InvalidId();
+    if(ids !== undefined){
+        if(!matches(ids, raw)) throw RequestError.InvalidId();
+        return raw;
+    }
 
     const value = raw.toLowerCase();
-    if(!uuid.test(value)) throw RequestError.InvalidId();
+    if(!UUID.test(value)) throw RequestError.InvalidId();
     return value;
 };
 
@@ -76,6 +104,15 @@ const parseValue = (raw: unknown, defaultValue: number, minimum: number): number
     return value;
 };
 
+const offsetOf = (raw: Record<string, unknown>, limit: number): number => {
+    if(raw.page === undefined) return parseValue(raw.offset, 0, 0);
+    if(raw.offset !== undefined) throw RequestError.InvalidPagination();
+
+    const offset = (parseValue(raw.page, 1, 1) - 1) * limit;
+    if(!Number.isSafeInteger(offset)) throw RequestError.InvalidPagination();
+    return offset;
+};
+
 export const parsePagination = (query: unknown, options?: PaginationOptions): Page => {
     const raw = (query ?? {}) as Record<string, unknown>;
 
@@ -83,11 +120,10 @@ export const parsePagination = (query: unknown, options?: PaginationOptions): Pa
         parseValue(raw.limit, options?.defaultLimit ?? 50, 1),
         options?.maxLimit ?? 100
     );
-    const offset = parseValue(raw.offset, 0, 0);
 
     return {
         limit,
-        offset
+        offset: offsetOf(raw, limit)
     };
 };
 
@@ -125,8 +161,10 @@ export const parseBody = <T>(validate: BodyValidator<T>, body: unknown): T => {
     throw new ValidationError(errors);
 };
 
+// A route that takes its body as a stream hands it over unread; the validator the Vite plugin
+// writes for a Readable parameter is never run against it.
 export const Body = <T>(validate?: BodyValidator<T>): ParameterDecorator =>
-    createParamDecorator((req) => validate ? parseBody(validate, req.body) : req.body);
+    createParamDecorator((req) => streamedBodyOf(req) ?? (validate ? parseBody(validate, req.body) : req.body));
 
 export const IdParam = (name: string): ParameterDecorator =>
     createParamDecorator((req) => parseId((req.params as Record<string, string>)[name]));
@@ -139,6 +177,16 @@ export const Reply = (): ParameterDecorator => createParamDecorator((_req, reply
 
 export const Param = (name: string): ParameterDecorator =>
     createParamDecorator((req) => (req.params as Record<string, string>)[name]);
+
+const firstOf = (value: string | string[] | undefined): string | undefined =>
+    Array.isArray(value) ? value[0] : value;
+
+export const Header = (name: string): ParameterDecorator =>
+    createParamDecorator((req) => firstOf(req.headers[name.toLowerCase()]));
+
+export const Ip = (): ParameterDecorator => createParamDecorator((req) => req.ip);
+
+export const UserAgent = (): ParameterDecorator => createParamDecorator((req) => req.headers['user-agent']);
 
 export const Query = (name?: string): ParameterDecorator =>
     createParamDecorator((req) => name === undefined ? req.query : (req.query as Record<string, string>)[name]);
@@ -155,25 +203,39 @@ export const OptionalIdQuery = (name: string): ParameterDecorator =>
 export const Pagination = (options?: PaginationOptions): ParameterDecorator =>
     createParamDecorator((req) => parsePagination(req.query, options));
 
-interface MultipartRequest{
-    file: () => Promise<{ filename: string; toBuffer: () => Promise<Buffer> } | undefined>;
+interface UploadBinding{
+    handlerName: string | symbol;
+    upload: UploadOptions;
 }
 
-export const UploadedFile = (): ParameterDecorator =>
-    createParamDecorator(async (req): Promise<UploadedFile> => {
-        const part = await (req as typeof req & MultipartRequest).file();
-        if(!part) throw RequestError.FileMissing();
+const uploadsByController = new ClassMetadata<UploadBinding>();
 
-        try{
-            const buffer = await part.toBuffer();
-            return {
-                filename: part.filename,
-                buffer
-            };
-        }catch(error){
-            if(error instanceof Error && (error as { code?: string }).code === 'FST_REQ_FILE_TOO_LARGE'){
-                throw RequestError.FileTooLarge();
-            }
-            throw error;
-        }
+const formParam = (
+    target: object,
+    handlerName: string | symbol | undefined,
+    index: number,
+    pick: (form: Form) => unknown
+) => {
+    if(handlerName === undefined) return;
+
+    const uploads = () => uploadsByController
+        .get(target.constructor)
+        .filter((binding) => binding.handlerName === handlerName)
+        .map((binding) => binding.upload);
+    createParamDecorator(async (req) => pick(await formOf(req, uploads())))(target, handlerName, index);
+};
+
+export const UploadedFile = (options: UploadOptions = {}): ParameterDecorator => (target, handlerName, index) => {
+    const upload = { ...options };
+    if(handlerName !== undefined) uploadsByController.append(target.constructor, { handlerName, upload });
+
+    formParam(target, handlerName, index, (form) => {
+        const file = form.files.get(upload);
+        if(file === undefined) throw RequestError.FileMissing();
+        return file;
     });
+};
+
+export const FormFields = (): ParameterDecorator => (target, handlerName, index) => {
+    formParam(target, handlerName, index, (form) => form.fields);
+};
