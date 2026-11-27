@@ -1,4 +1,5 @@
 import { configure } from '../lib/app/config';
+import { readable } from '../lib/app/readable';
 import { logger } from '../lib/app/logger';
 import { broadcast } from '../lib/events/Broadcast';
 import { eventBus } from '../lib/events/EventBus';
@@ -6,6 +7,7 @@ import { MemoryTransport } from '../lib/events/MemoryTransport';
 import { PostgresTransport } from '../lib/events/PostgresTransport';
 import { RedisTransport } from '../lib/events/RedisTransport';
 import { closeTransport, hasChosenTransport, transport, useTransport } from '../lib/events/transports';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TEST_REDIS } from './env';
 
@@ -86,6 +88,18 @@ describe('the transport an app runs on', () => {
         await expect(chosenUnder(null, 'postgres://localhost/app')).resolves.toBeInstanceOf(PostgresTransport);
         await expect(chosenUnder(null, 'sqlite::memory:')).resolves.toBeInstanceOf(MemoryTransport);
         await expect(chosenUnder(null, '')).resolves.toBeInstanceOf(MemoryTransport);
+    });
+
+    it('is the one readable({ transport }) was given, whatever the environment says', () => {
+        const given = new MemoryTransport();
+        vi.stubEnv('PORT', '0');
+        vi.stubEnv('DATABASE_URL', 'postgres://localhost/app');
+        vi.stubEnv('REDIS_HOST', 'cache');
+
+        readable({ root: join(import.meta.dirname, 'fixtures/notes'), transport: given });
+        vi.unstubAllEnvs();
+
+        expect(transport()).toBe(given);
     });
 
     it('is the one the app chose, which stays chosen when it is closed', async () => {

@@ -9,6 +9,8 @@ import {
 import { discoverIn } from './discovery';
 import { DatabaseOptions, MigrationSource, createDataSource } from '../database/data-source';
 import { SessionCutoffStore, useSessionCutoffs } from '../auth/sessions';
+import { Transport } from '../events/Transport';
+import { useTransport } from '../events/transports';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -20,6 +22,7 @@ export interface ReadableOptions extends Pick<ApplicationOptions, 'publicPaths' 
     migrations?: MigrationSource;
     database?: DatabaseOptions;
     sessionCutoffs?: SessionCutoffStore;
+    transport?: Transport;
 }
 
 const scopeOf = (root: string): string => {
@@ -36,6 +39,7 @@ export const readable = ({
     migrations,
     database,
     sessionCutoffs,
+    transport,
     ...hooks
 }: ReadableOptions = {}): Application => {
     const service = serviceConfig('');
@@ -47,6 +51,7 @@ export const readable = ({
         storage: optionalEnv('STORAGE_ENDPOINT') === undefined ? null : storageFromEnv()
     });
     if(sessionCutoffs) useSessionCutoffs(sessionCutoffs);
+    if(transport) useTransport(transport);
 
     return new Application({
         port: service.port,
