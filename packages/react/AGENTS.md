@@ -42,17 +42,30 @@ mount({
 | `name` | names the session in `localStorage`: `<name>.session` |
 | `apiUrl` | the api's base url; blank or unset is `<origin>/api` |
 | `pages` | the page files, from `import.meta.glob`; Vite resolves them when it builds |
+| `meta` | every page's meta, from `import.meta.glob(..., { import: 'meta', eager: true })`, below |
 | `layout` | the frame around every protected page, with an `<Outlet />` |
+| `frame` | the frame around every tier and `notFound`, inside the router: an error boundary, chrome, context menus, the title from `usePageMeta()` |
 | `notFound` | the page for a path no page answers; unknown paths go to `home` without it |
+| `pending` | what shows while a page or a layout loads, a skeleton; nothing when unset |
 | `signIn`, `home` | where a guest is sent (`/sign-in`), and where a signed-in user is (`/`) |
+| `guards` | the app's own checks of each tier, below |
+| `boot` | runs before the app first draws: an async sign-in, a local stack starting; `booting` shows meanwhile, `pending` when unset |
 | `copy` | the app's error copy, below |
 | `wrap` | providers around the router: `wrap: (app) => <I18nProvider i18n={i18n}>{app}</I18nProvider>` |
 | `root` | the element to render into, `#root` when unset |
+| `router` | `createBrowserRouter`'s options (`basename`, ...) and `RouterProvider`'s (`useTransitions`, `onError`) |
 
-`readableConfig(overrides, { api, root })` from `@pollium/readable-react/app/vite` is the whole Vite
-config: form validation, typia, the `@` alias, `react` deduped, `/api` proxied to `api` with its
-websockets, and tests under `src/**/*.test.{ts,tsx}` in happy-dom with `tests/setup.ts` when it exists.
+`mount` answers the router, so the app can wrap `router.navigate`, for view transitions say.
+
+`readableConfig(overrides, { api, apiPrefix, proxy, root })` from `@pollium/readable-react/app/vite` is
+the whole Vite config, on Vite 7.3 or 8: form validation, typia, the `@` alias, `react` deduped, `/api`
+proxied to `api` with its websockets, and tests under `src/**/*.test.{ts,tsx}` in happy-dom with
+`tests/setup.ts` when it exists. It does not import Vitest, so a web without tests does not install it.
 The web adds its own plugins, as `readableConfig({ plugins: [react(), tailwindcss()] })`.
+
+- The proxy takes `/api` off, for an api whose routes have no prefix. `apiPrefix: '/api'` is for an api
+  whose routes carry it: the proxy sends `/api/...` as it is, and the web's `apiUrl` is its origin.
+- `proxy: { '/socket.io': { ws: true } }` sends more paths to `api`, with Vite's proxy options.
 
 ## Pages
 
@@ -62,14 +75,67 @@ A page is the default export of an `index.tsx`, and its folder is its path:
 |---|---|
 | `modules/notes/pages/protected/index.tsx` | `/` |
 | `modules/notes/pages/protected/notes/[noteId]/index.tsx` | `/notes/:noteId` |
+| `modules/ai/pages/protected/ai/[[conversationId]]/index.tsx` | `/ai` and `/ai/:conversationId` |
 | `modules/auth/pages/guest/signIn/index.tsx` | `/sign-in` |
-| `modules/notes/pages/protected/notes/layout.tsx` | the frame of `/notes` and of the pages one folder below it |
+| `modules/notes/pages/protected/notes/layout.tsx` | the frame of `/notes` and of every page below it |
 
 - A guest who opens a protected page is sent to `signIn?next=<where they were going>`, and back there once
   the session starts. A signed-in user on a guest page goes to `next`, or `home`.
+- A page may carry meta: a title, a nav entry, what it needs. The app gives `PageMeta` its shape once, and
+  each page sets it in a `meta.ts` beside its `index.tsx`:
+
+```ts
+// src/app/page-meta.ts
+declare module '@pollium/readable-react/pages/meta'{
+    interface PageMeta{ title?: string; nav?: 'main' | 'settings'; permissions?: Permission[] }
+}
+
+// src/modules/keys/pages/protected/dashboard/keys/meta.ts
+import { PageMeta } from '@pollium/readable-react/pages/meta';
+
+export const meta: PageMeta = { title: 'Secret keys', nav: 'settings', permissions: ['team-secret-key:read'] };
+
+// src/main.tsx
+mount({ ..., meta: import.meta.glob('/src/modules/*/pages/**/meta.ts', { import: 'meta', eager: true }) });
+```
+
+- `pageList()` from `pages/meta` lists every page as `{ tier, path, meta }`, for a nav, without loading
+  any of them; `pageMeta(path)` is the meta of the page a path opens; `usePageMeta()` is the open page's,
+  in the page and in every frame above it.
+- `export const meta` in the `index.tsx` itself works too, and the glob is then of the `index.tsx` files,
+  but Vite then puts every page in the first bundle: a module imported eagerly is never split out.
+- A tier's `guards` run in order whenever one of its pages opens, and the first that names a path sends the
+  user there. Readable's own check comes first: the protected tier's guards always see a session.
+
+```ts
+mount({
+    ...,
+    guards: {
+        protected: [
+            () => hasTeam() ? null : '/onboarding',
+            async ({ meta }) => await canAll(meta?.permissions) ? null : '/dashboard'
+        ],
+        public: [() => backend() === null ? '/connect' : null]
+    }
+});
+```
+
+- A guard gets `{ tier, path, search, params, meta, session }`, `meta` being the opening page's, and
+  answers a path, or `null` to let the user through. A guard that answers a promise shows `pending` until
+  it settles; one that fails, or throws, reaches the route's error boundary.
+- A path a guard names for the page the user is already on lets them stay, so `/onboarding` cannot send
+  itself to `/onboarding`.
+- Guards run again on every navigation and when the session changes. `recheckGuards()` from `pages/guards`
+  runs them again when something else they read changes, a team deleted say. A guard may run more than
+  once for one page, so it reads and does not act.
 - Every page loads when it is first opened. `prefetchPage(path)` from `pages/prefetch` loads it before,
   for a link the user is about to follow.
-- Two pages at the same path of a tier stop the app at boot with `Page::DuplicatePath`.
+- A layout frames every page of its tier in its folder and the folders below it, from any module. A layout
+  in a folder below another sits inside it, and a page is framed by the deepest layout that holds it.
+- One component at several paths is a page file at each that re-exports it:
+  `export { default } from '@/modules/canvas/components/CanvasPage';`.
+- Two pages at the same path of a tier stop the app at boot with `Page::DuplicatePath`; a page in an
+  optional folder (`[[name]]`) is at both of its paths, so `ai/index.tsx` beside it is a duplicate.
 
 ## Queries
 
@@ -226,6 +292,31 @@ const form = useForm(roadmapRoutes.createStep, {
   changes what it shows when its link no longer works.
 - The messages for a field are in English; `copy.fields` in `mount` replaces them.
 
+A form with no endpoint hands its values to its own `submit`, and is validated only by the `validate` it
+is given:
+
+```ts
+const probe = useForm({
+    initial: { url: '' },
+    validate: typia.createValidate<EndpointInput>(),
+    submit: ({ url }) => probeHealth(url),
+    onDone: (health) => onConnected(health)
+});
+```
+
+- What `submit` throws is handled as an endpoint's error: an `ApiError`'s fields land on their fields,
+  anything else is `submitError`. With no `submit`, a valid submit only calls `onDone(undefined, values)`.
+- `validateField(name)` and `validateFields(['fullName', 'password'])` check those fields now, show their
+  errors, leave the others' alone and answer whether they passed: one step of a form at a time.
+  `validateFields()` checks them all.
+- `handleSubmit(event, { submit, fields })` submits once through another action and checks only `fields`,
+  for a step with its own request or a second button. It does not refresh what the endpoint would; the
+  form's `onDone` and `onFail` still run.
+- `values` and `watch(name)` are the values now; `watch()` is all of them.
+- `reset(values)` starts the form again from `values`, and a later `reset()` goes back to them.
+- `setFieldError(name, message)` puts the app's own message on a field, until the field next changes;
+  `null` takes it off.
+
 ## Session
 
 `session.start(token)` signs in, `session.end()` signs out, and `useSession()` renders again on each. The
@@ -253,7 +344,8 @@ gateway. A test renders a page or a hook with `@testing-library/react`.
 - **`useQuery(endpoint, undefined)` is `useQuery(endpoint)`.** For an endpoint with no params, wait with
   `enabled`, not with a falsy target.
 - **A form is validated only when written `useForm(contract.endpoint, { ... })`**, with the endpoint
-  named and the options inline. Anything else gets no validator, and the server still refuses.
+  named and the options inline. Anything else, a form with no endpoint too, gets no validator unless it
+  is given `validate`, and the server still refuses.
 - **`typia` must be a dependency of the web.** The plugin writes `import typia from 'typia'` into the
   web's own files.
 - **The handlers of `useChannel` are read once, when it mounts.** A handler added later is never called;
