@@ -8,10 +8,20 @@ export interface Snapshot{
     landed: boolean;
 }
 
-interface Entry{
-    base: string;
+export interface Source{
+    endpoint: string;
     path: string;
+    base: string;
+    target: object;
     load: () => Promise<unknown>;
+}
+
+export interface Saved{
+    snapshot: Snapshot;
+    fetchedAt: number;
+}
+
+interface Entry extends Source{
     snapshot: Snapshot;
     fetchedAt: number;
     run: number;
@@ -25,10 +35,10 @@ const EMPTY: Snapshot = { data: undefined, error: undefined, fetching: false, la
 class QueryCache{
     readonly #entries = new Map<string, Entry>();
 
-    ensure(key: string, path: string, load: () => Promise<unknown>, base = ''){
+    ensure(key: string, source: Source){
         if(this.#entries.has(key)) return;
         this.#sweep();
-        this.#entries.set(key, { base, path, load, snapshot: EMPTY, fetchedAt: 0, run: 0, pending: null, listeners: new Set(), idleSince: Date.now() });
+        this.#entries.set(key, { ...source, snapshot: EMPTY, fetchedAt: 0, run: 0, pending: null, listeners: new Set(), idleSince: Date.now() });
     }
 
     snapshot(key: string | null): Snapshot{
@@ -78,6 +88,42 @@ class QueryCache{
         this.#update(entry, { data, error: undefined, fetching: false, landed: true });
     }
 
+    saved(key: string): Saved | undefined{
+        const entry = this.#entries.get(key);
+        return entry === undefined ? undefined : { snapshot: entry.snapshot, fetchedAt: entry.fetchedAt };
+    }
+
+    // Puts back what was there before `written`, unless something newer has landed since.
+    restore(key: string, saved: Saved | undefined, written: unknown){
+        const entry = this.#entries.get(key);
+        if(entry === undefined || !entry.snapshot.landed || entry.snapshot.data !== written) return;
+        if(saved === undefined || !saved.snapshot.landed) return this.#reset(key, entry);
+
+        entry.run += 1;
+        entry.pending = null;
+        entry.fetchedAt = saved.fetchedAt;
+        this.#update(entry, { ...saved.snapshot, fetching: false });
+        if(saved.snapshot.fetching && entry.listeners.size > 0) void this.fetch(key, { force: true });
+    }
+
+    keysOf(endpoint?: string): string[]{
+        return [...this.#entries].filter(([, entry]) => endpoint === undefined || entry.endpoint === endpoint).map(([key]) => key);
+    }
+
+    targetOf(key: string): object | undefined{
+        return this.#entries.get(key)?.target;
+    }
+
+    // A query on screen asks again at once; any other answer is dropped.
+    forget(keys: readonly string[]){
+        for(const key of keys){
+            const entry = this.#entries.get(key);
+            if(entry === undefined) continue;
+            if(entry.listeners.size > 0) this.#reset(key, entry);
+            else this.#entries.delete(key);
+        }
+    }
+
     async refresh(matches: (path: string, base: string) => boolean){
         const refreshing: Promise<void>[] = [];
         for(const [key, entry] of this.#entries){
@@ -95,6 +141,14 @@ class QueryCache{
             entry.fetchedAt = 0;
             this.#update(entry, EMPTY);
         }
+    }
+
+    #reset(key: string, entry: Entry){
+        entry.run += 1;
+        entry.pending = null;
+        entry.fetchedAt = 0;
+        this.#update(entry, EMPTY);
+        if(entry.listeners.size > 0) void this.fetch(key, { force: true });
     }
 
     #sweep(){
