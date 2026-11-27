@@ -64,6 +64,7 @@ export const storageConfig = (): ReadableStorageConfig => {
 
 export const serviceConfig = (corsFallback: string) => ({
     port: Number(requiredEnv('PORT')),
+    host: optionalEnv('HOST') ?? '0.0.0.0',
     corsOrigins: (optionalEnv('CORS_ORIGIN') ?? corsFallback)
         .split(',')
         .map((origin) => origin.trim())

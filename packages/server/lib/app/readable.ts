@@ -7,11 +7,12 @@ import {
     storageFromEnv
 } from './config';
 import { discoverIn } from './discovery';
+import { HttpOptions } from './http-options';
 import { MigrationSource, createDataSource } from '../database/data-source';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-export interface ReadableOptions extends Pick<ApplicationOptions, 'publicPaths' | 'plugins' | 'afterDatabase' | 'afterMount'>{
+export interface ReadableOptions extends Pick<ApplicationOptions, 'publicPaths' | 'plugins' | 'afterDatabase' | 'afterMount'>, HttpOptions{
     root?: string;
     name?: string;
     folders?: string[];
@@ -44,6 +45,7 @@ export const readable = ({
 
     return new Application({
         port: service.port,
+        host: service.host,
         corsOrigins: service.corsOrigins,
         log: service.log,
         discover: () => discoverIn(join(root, 'src'), folders),

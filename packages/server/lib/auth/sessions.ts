@@ -17,6 +17,7 @@ declare module 'fastify'{
     interface FastifyRequest{
         principal?: Principal;
         sessionExpiresAt?: number;
+        token?: string;
     }
 }
 

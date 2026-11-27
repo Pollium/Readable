@@ -1,5 +1,5 @@
 import BaseController, { Route } from '../lib/http/Controller';
-import { Query, Reply, Req } from '../lib/http/params';
+import { Header, Ip, Query, Reply, Req, UserAgent } from '../lib/http/params';
 import Fastify, { FastifyReply, FastifyRequest } from 'fastify';
 import { describe, expect, it } from 'vitest';
 
@@ -8,6 +8,11 @@ class EchoController extends BaseController{
     echo(@Req() req: FastifyRequest, @Reply() reply: FastifyReply){
         reply.header('x-echo', String(req.headers['x-probe']));
         return { url: req.url };
+    }
+
+    @Route('/client')
+    client(@Header('If-None-Match') etag: string | undefined, @Header('x-missing') missing: string | undefined, @Ip() ip: string, @UserAgent() agent: string | undefined){
+        return { etag: etag ?? null, missing: missing ?? null, ip, agent: agent ?? null };
     }
 
     @Route('/search')
@@ -37,6 +42,23 @@ describe('Query', () => {
         const res = await app.inject({ method: 'GET', url: '/search?term=condor&page=2' });
 
         expect(res.json()).toEqual({ data: { query: { term: 'condor', page: '2' }, page: '2' } });
+        await app.close();
+    });
+});
+
+describe('Header, Ip and UserAgent', () => {
+    it('hand a handler one request header by any case of its name, the client address and its agent', async () => {
+        const app = Fastify({ trustProxy: true });
+        await new EchoController().register(app, '');
+
+        const res = await app.inject({
+            method: 'GET',
+            url: '/client',
+            remoteAddress: '10.0.0.2',
+            headers: { 'if-none-match': '"v1"', 'user-agent': 'voltsdk/1.0', 'x-forwarded-for': '203.0.113.7' }
+        });
+
+        expect(res.json()).toEqual({ data: { etag: '"v1"', missing: null, ip: '203.0.113.7', agent: 'voltsdk/1.0' } });
         await app.close();
     });
 });

@@ -13,6 +13,10 @@ export const principalId = (req: FastifyRequest): string => {
 
 export const CurrentUser = (): ParameterDecorator => createParamDecorator(principalId);
 
+export const CurrentPrincipal = (): ParameterDecorator => createParamDecorator((req) => req.principal);
+
+export const Token = (): ParameterDecorator => createParamDecorator((req) => req.token);
+
 const sessionExpiresAt = (req: FastifyRequest): number => {
     if(req.sessionExpiresAt === undefined) throw AuthError.Unauthorized();
 
