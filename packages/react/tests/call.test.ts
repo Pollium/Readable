@@ -5,6 +5,8 @@ import { fakeApi } from './support/fake-api';
 import { noteRoutes } from './support/notes';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+const note = { id: 'n1', title: 'a' };
+
 describe('call', () => {
     afterEach(() => session.end());
 
@@ -205,6 +207,66 @@ describe('call', () => {
             // @ts-expect-error a call read as bytes does not answer the endpoint's output
             const wrong: { id: string } = await call(noteRoutes.me, { as: 'arrayBuffer' });
             return [blob, text, me, wrong];
+        };
+
+        expect(typed).toBeTypeOf('function');
+    });
+
+    it('sends a blob, bytes or form fields as they are', async () => {
+        const api = fakeApi();
+        api.on('POST', '/notebooks/nb1/notes', { status: 201, body: { data: note } });
+        const path = { notebookId: 'nb1' };
+        const blob = new Blob(['a'], { type: 'text/csv' });
+        const bytes = new Uint8Array([1, 2]);
+        const fields = new URLSearchParams({ title: 'a' });
+
+        await call(noteRoutes.create, { path, body: blob });
+        await call(noteRoutes.create, { path, body: bytes, contentType: 'application/octet-stream' });
+        await call(noteRoutes.create, { path, body: bytes.buffer });
+        await call(noteRoutes.create, { path, body: fields });
+
+        expect(api.sent.map((sent) => sent.init.body)).toEqual([blob, bytes, bytes.buffer, fields]);
+        expect(api.sent.map((sent) => sent.headers['Content-Type'])).toEqual([undefined, 'application/octet-stream', undefined, undefined]);
+    });
+
+    it('sends a string it is given a content type for as it is, and any other as JSON', async () => {
+        const api = fakeApi();
+        api.on('POST', '/notebooks/nb1/notes', { status: 201, body: { data: note } });
+        const path = { notebookId: 'nb1' };
+
+        await call(noteRoutes.create, { path, body: '{"title":"a"}', contentType: 'application/x-ipynb+json' });
+        await call(noteRoutes.create, { path, body: { title: 'a' }, contentType: 'application/merge-patch+json' });
+
+        expect(api.sent[0].init.body).toBe('{"title":"a"}');
+        expect(api.sent[0].headers['Content-Type']).toBe('application/x-ipynb+json');
+        expect(api.sent[1].init.body).toBe('{"title":"a"}');
+        expect(api.sent[1].headers['Content-Type']).toBe('application/merge-patch+json');
+    });
+
+    it('never sends the Content-Type a caller gives with a form, so fetch writes its boundary', async () => {
+        const api = fakeApi();
+        api.on('POST', '/notebooks/nb1/notes', { status: 201, body: { data: note } });
+
+        await call(noteRoutes.create, { path: { notebookId: 'nb1' }, body: new FormData(), headers: { 'content-type': 'multipart/form-data', 'X-Upload': 'yes' } });
+
+        expect(api.sent[0].headers).toEqual({ 'X-Upload': 'yes' });
+    });
+
+    it('sends one Content-Type, the caller\'s, whatever case it is written in', async () => {
+        const api = fakeApi();
+        api.on('POST', '/notebooks/nb1/notes', { status: 201, body: { data: note } });
+
+        await call(noteRoutes.create, { path: { notebookId: 'nb1' }, body: { title: 'a' }, headers: { 'content-type': 'application/vnd.notes+json' } });
+
+        expect(api.sent[0].headers).toEqual({ 'Content-Type': 'application/vnd.notes+json' });
+    });
+
+    it('takes a string body only with its content type', () => {
+        const typed = () => {
+            // @ts-expect-error a string is sent as it is only when its content type is given
+            void call(noteRoutes.create, { path: { notebookId: 'nb1' }, body: '{"title":"a"}' });
+            void call(noteRoutes.create, { path: { notebookId: 'nb1' }, body: '{"title":"a"}', contentType: 'application/json' });
+            void call(noteRoutes.remove, { path: { notebookId: 'nb1', noteId: 'n1' }, body: new Blob([]) });
         };
 
         expect(typed).toBeTypeOf('function');

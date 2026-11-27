@@ -27,7 +27,20 @@ export type AnswerOf<A extends AnswerKind, O> =
                 : A extends 'response' ? Response
                     : O;
 
-export type CallArgs<I, A extends AnswerKind = 'json'> = Target & Body<I> & {
+export type RawBody = Blob | ArrayBuffer | ArrayBufferView | URLSearchParams;
+
+type SentBody<I> = [I] extends [never]
+    ? { body?: FormData | RawBody }
+    : undefined extends I ? { body?: I | FormData | RawBody } : { body: I | FormData | RawBody };
+
+// A body the caller encoded itself, such as a document too large for the api to take as JSON.
+interface EncodedBody{
+    body: string;
+    contentType: string;
+}
+
+export type CallArgs<I, A extends AnswerKind = 'json'> = Target & (SentBody<I> | EncodedBody) & {
+    contentType?: string;
     signal?: AbortSignal;
     keepalive?: boolean;
     as?: A;
@@ -77,12 +90,36 @@ export const searchOf = (query: object = {}): string => {
 export const urlOf = (endpoint: Pick<Endpoint, 'path'>, { base, path, query }: Target = {}): string =>
     `${(base ?? settings().apiUrl).replace(/\/+$/, '')}${pathOf(endpoint.path, path)}${searchOf(query)}`;
 
-const isJson = (body: unknown): boolean => body !== undefined && !(body instanceof FormData);
+type Encoding = 'none' | 'form' | 'raw' | 'json';
 
-const headersOf = (body: unknown, token: string | null): Record<string, string> => ({
-    ...(isJson(body) ? { 'Content-Type': 'application/json' } : {}),
-    ...(token === null ? {} : { Authorization: `Bearer ${token}` })
-});
+const isRaw = (body: unknown): boolean => body instanceof Blob || body instanceof ArrayBuffer
+    || ArrayBuffer.isView(body) || body instanceof URLSearchParams;
+
+const encodingOf = (body: unknown, contentType: string | undefined): Encoding => {
+    if(body === undefined) return 'none';
+    if(body instanceof FormData) return 'form';
+    if(isRaw(body) || (typeof body === 'string' && contentType !== undefined)) return 'raw';
+    return 'json';
+};
+
+const isContentType = (name: string): boolean => name.toLowerCase() === 'content-type';
+
+// FormData never takes a Content-Type: fetch writes it with the boundary of the parts.
+export const headersOf = (
+    encoding: Encoding,
+    contentType: string | undefined,
+    token: string | null,
+    headers: Readonly<Record<string, string>> = {}
+): Record<string, string> => {
+    const given = Object.entries(headers).find(([name]) => isContentType(name))?.[1];
+    const type = encoding === 'form' ? undefined : given ?? contentType ?? (encoding === 'json' ? 'application/json' : undefined);
+
+    return {
+        ...(type === undefined ? {} : { 'Content-Type': type }),
+        ...(token === null ? {} : { Authorization: `Bearer ${token}` }),
+        ...Object.fromEntries(Object.entries(headers).filter(([name]) => !isContentType(name)))
+    };
+};
 
 const unwrap = (payload: unknown): unknown => {
     const answer = payload as ApiResponse<unknown> | undefined;
@@ -126,12 +163,13 @@ const send = async (url: string, init: RequestInit): Promise<Response> => {
 };
 
 export const request = async (endpoint: Pick<Endpoint, 'method' | 'path'>, args: CallArgs<unknown, AnswerKind> = {}): Promise<unknown> => {
-    const { base, path, query, headers, body, signal, keepalive, as = 'json' } = args;
+    const { base, path, query, headers, body, contentType, signal, keepalive, as = 'json' } = args;
     const token = session.token;
+    const encoding = encodingOf(body, contentType);
     const response = await send(urlOf(endpoint, { base, path, query }), {
         method: endpoint.method,
-        headers: { ...headersOf(body, token), ...headers },
-        body: isJson(body) ? JSON.stringify(body) : body as FormData | undefined,
+        headers: headersOf(encoding, contentType, token, headers),
+        body: encoding === 'json' ? JSON.stringify(body) : body as BodyInit | undefined,
         signal,
         keepalive
     });
