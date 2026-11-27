@@ -1,10 +1,12 @@
 import { IdFormat, configureIds } from '../http/params';
 import { Authenticate, SignTestToken, configureAuthentication } from '../auth/authentication';
+import { ErrorMapper } from './error-answers';
 
 export interface HttpOptions{
     ids?: IdFormat;
     authenticate?: Authenticate;
     signTestToken?: SignTestToken;
+    mapError?: ErrorMapper;
 }
 
 // These settings are read by free functions (parseId, the guards and the test request helper), so
