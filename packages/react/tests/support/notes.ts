@@ -1,4 +1,5 @@
 import { defineErrors } from '@pollium/readable-contracts/errors';
+import { PageOf } from '@pollium/readable-contracts/http';
 import { gateway } from '@pollium/readable-contracts/gateway';
 import { del, get, patch, post } from '@pollium/readable-contracts/routing';
 import { tags } from 'typia';
@@ -26,7 +27,13 @@ export const noteRoutes = {
     archive: post<void, Note>('/notebooks/:notebookId/notes/:noteId/archive'),
     notebooks: get<{ id: string }[]>('/notebooks'),
     search: post<{ text: string }, Note[]>('/notes/search'),
-    me: get<{ id: string }>('/me')
+    me: get<{ id: string }>('/me'),
+    download: get<void>('/notebooks/:notebookId/export'),
+    members: get<{ id: string }[]>('/teams/:teamId/members'),
+    cluster: get<{ status: 'waiting' | 'ready' }>('/cluster'),
+    feed: get<PageOf<Note>>('/notebooks/:notebookId/feed'),
+    post: post<CreateNoteInput, Note>('/notebooks/:notebookId/feed'),
+    removeMember: del('/teams/:teamId/members/:memberId')
 };
 
 export const NoteErrors = defineErrors({
