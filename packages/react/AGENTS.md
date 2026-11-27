@@ -112,10 +112,10 @@ mount({
     ...,
     guards: {
         protected: [
-            ({ path }) => !hasTeam() && path !== '/onboarding' ? '/onboarding' : null,
+            () => hasTeam() ? null : '/onboarding',
             async ({ meta }) => await canAll(meta?.permissions) ? null : '/dashboard'
         ],
-        public: [({ path }) => backend() === null ? '/connect' : null]
+        public: [() => backend() === null ? '/connect' : null]
     }
 });
 ```
@@ -132,6 +132,8 @@ mount({
   for a link the user is about to follow.
 - A layout frames every page of its tier in its folder and the folders below it, from any module. A layout
   in a folder below another sits inside it, and a page is framed by the deepest layout that holds it.
+- One component at several paths is a page file at each that re-exports it:
+  `export { default } from '@/modules/canvas/components/CanvasPage';`.
 - Two pages at the same path of a tier stop the app at boot with `Page::DuplicatePath`; a page in an
   optional folder (`[[name]]`) is at both of its paths, so `ai/index.tsx` beside it is a duplicate.
 
