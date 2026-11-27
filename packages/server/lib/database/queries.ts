@@ -1,4 +1,5 @@
 import { RuntimeError } from '../app/errors';
+import { onSqlite } from './dialect';
 import {
     EntityManager,
     EntityTarget,
@@ -47,8 +48,10 @@ export const findOrThrow = async <T extends BaseEntity>(
     return found;
 };
 
+const UNIQUE_VIOLATIONS = new Set(['23505', 'SQLITE_CONSTRAINT_UNIQUE', 'SQLITE_CONSTRAINT_PRIMARYKEY']);
+
 export const isUniqueViolation = (error: unknown): error is QueryFailedError => {
-    return (error instanceof QueryFailedError && error.driverError.code === '23505');
+    return error instanceof QueryFailedError && UNIQUE_VIOLATIONS.has(String(error.driverError?.code));
 };
 
 export const nextPosition = async <T extends Positioned>(
@@ -65,7 +68,9 @@ export const nextPosition = async <T extends Positioned>(
     return last ? last.position + 1 : 0;
 };
 
+// SQLite runs the root manager's transactions one at a time, so a transaction already holds every lock.
 export const advisoryLock = async (manager: EntityManager, namespace: number, key: string) => {
+    if(onSqlite(manager)) return;
     await manager.query('SELECT pg_advisory_xact_lock(hashtextextended($1, $2))', [key, namespace]);
 };
 
@@ -76,7 +81,20 @@ const SERIES = `
         INTERVAL '1 day'
     ) AS series(day)`;
 
+// The same series on SQLite, counted back from today in UTC, which is how TypeORM stores its dates there.
+const SQLITE_SERIES = `
+    WITH RECURSIVE series(day) AS (
+        SELECT date('now', '-' || ? || ' days')
+        UNION ALL
+        SELECT date(day, '+1 day') FROM series WHERE day < date('now')
+    )`;
+
 export const recentDates = async (manager: EntityManager, days: number): Promise<string[]> => {
+    if(onSqlite(manager)){
+        const rows = await manager.query<{ date: string }[]>(`${SQLITE_SERIES} SELECT day AS date FROM series ORDER BY day ASC`, [days - 1]);
+        return rows.map((row) => row.date);
+    }
+
     const rows = await manager.query<{ date: string }[]>(`
         SELECT to_char(series.day, 'YYYY-MM-DD') AS date
         FROM ${SERIES}
@@ -94,6 +112,20 @@ export const countPerDay = async (
     const manager = target.getRepository().manager;
     const ref = tableRef(manager, target);
     const stamp = ref.column(property);
+
+    if(onSqlite(manager)){
+        const rows = await manager.query<DayCountRow[]>(`${SQLITE_SERIES}
+            SELECT series.day AS date, COUNT(entry."${ref.primaryKey}") AS count
+            FROM series
+            LEFT JOIN ${ref.table} AS entry
+                ON entry."${stamp}" >= series.day
+                AND entry."${stamp}" < date(series.day, '+1 day')
+            GROUP BY series.day
+            ORDER BY series.day ASC
+        `, [days - 1]);
+
+        return rows.map((row) => ({ date: row.date, count: Number(row.count) }));
+    }
 
     const rows = await manager.query<DayCountRow[]>(`
         SELECT to_char(series.day, 'YYYY-MM-DD') AS date, COUNT(entry."${ref.primaryKey}") AS count
