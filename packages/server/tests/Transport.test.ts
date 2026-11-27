@@ -3,6 +3,7 @@ import { logger } from '../lib/app/logger';
 import { broadcast } from '../lib/events/Broadcast';
 import { eventBus } from '../lib/events/EventBus';
 import { MemoryTransport } from '../lib/events/MemoryTransport';
+import { PostgresTransport } from '../lib/events/PostgresTransport';
 import { RedisTransport } from '../lib/events/RedisTransport';
 import { closeTransport, hasChosenTransport, transport, useTransport } from '../lib/events/transports';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -71,13 +72,20 @@ describe('the transport an app runs on', () => {
         await closeTransport();
     });
 
-    it('is Redis when the app has Redis, and one process when it has not', async () => {
-        configure({ name: 'readable', jwtSecret: null, redis: TEST_REDIS, storage: null });
-        expect(transport()).toBeInstanceOf(RedisTransport);
+    const chosenUnder = async (redis: typeof TEST_REDIS | null, databaseUrl: string) => {
+        vi.stubEnv('DATABASE_URL', databaseUrl);
+        configure({ name: 'readable', jwtSecret: null, redis: redis as never, storage: null });
+        const chosen = transport();
         await closeTransport();
+        vi.unstubAllEnvs();
+        return chosen;
+    };
 
-        configure({ name: 'readable', jwtSecret: null, redis: null as never, storage: null });
-        expect(transport()).toBeInstanceOf(MemoryTransport);
+    it('is Redis when the app has Redis, else its Postgres database, else one process', async () => {
+        await expect(chosenUnder(TEST_REDIS, 'postgres://localhost/app')).resolves.toBeInstanceOf(RedisTransport);
+        await expect(chosenUnder(null, 'postgres://localhost/app')).resolves.toBeInstanceOf(PostgresTransport);
+        await expect(chosenUnder(null, 'sqlite::memory:')).resolves.toBeInstanceOf(MemoryTransport);
+        await expect(chosenUnder(null, '')).resolves.toBeInstanceOf(MemoryTransport);
     });
 
     it('is the one the app chose, which stays chosen when it is closed', async () => {
